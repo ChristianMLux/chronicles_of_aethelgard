@@ -13,6 +13,14 @@ export const BUILDING_LIST: BuildingKey[] = [
   "Manamine",
 ];
 
+// Building icon mapping
+export const BUILDING_ICONS: Record<BuildingKey, string> = {
+  Steinbruch: "/assets/icons/buildings/quarry.png",
+  Holzfällerlager: "/assets/icons/buildings/sawmill.png",
+  Farmen: "/assets/icons/buildings/farm.png",
+  Manamine: "/assets/icons/buildings/manamine.png",
+};
+
 // Base costs for level 1, escalates with factor per level
 const BASE_BUILDING_COST: Record<BuildingKey, Partial<Record<ResourceKey, number>>> = {
   Steinbruch: { stone: 60, wood: 30 },

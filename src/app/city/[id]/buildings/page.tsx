@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getDb } from "../../../../../firebase";
-import { BUILDING_LIST, BuildingKey, canAfford, getBuildingUpgradeCost, getBuildTimeSeconds, numberFmt } from "@/lib/game";
+import { BUILDING_LIST, BUILDING_ICONS, BuildingKey, getBuildingUpgradeCost, canAfford, getBuildTimeSeconds, numberFmt } from "@/lib/game";
 import { doc, getDoc, runTransaction } from "firebase/firestore";
 import Link from "next/link";
 import Modal from "@/components/Modal";
@@ -75,7 +75,16 @@ export default function CityBuildingsPage({ params }: { params: { id: string } }
           return (
             <div key={b} className="border rounded p-3 flex items-center justify-between">
               <div onClick={() => setSelected(b)} className="cursor-pointer">
-                <div className="font-medium flex items-center gap-2"><Image src="/assets/icons/resources/stone.png" width={18} height={18} alt="" className="icon-tile"/> {b} — L{level}</div>
+                <div className="font-medium flex items-center gap-2">
+                  <Image 
+                    src={BUILDING_ICONS[b]} 
+                    width={18} 
+                    height={18} 
+                    alt="" 
+                    className="icon-tile"
+                  /> 
+                  {b} — L{level}
+                </div>
                 <div className="text-sm text-gray-600">Kosten: S {numberFmt.format(cost.stone ?? 0)} / H {numberFmt.format(cost.wood ?? 0)} / F {numberFmt.format(cost.food ?? 0)} / M {numberFmt.format(cost.mana ?? 0)}</div>
                 <div className="text-xs text-gray-600">Bauzeit: ~{getBuildTimeSeconds(b, level + 1)}s</div>
                 {city.buildQueue?.filter((t) => t.building === b).map((t, idx) => (
@@ -95,30 +104,29 @@ export default function CityBuildingsPage({ params }: { params: { id: string } }
       </div>
       <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `${selected} — L${city.buildings?.[selected] ?? 0}` : undefined}>
         {selected && (
-          <BuildingDetails
-            city={city}
-            building={selected}
-            onUpgrade={() => upgrade(selected)}
-            busy={busy === selected}
-          />
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 mb-4">
+              <Image 
+                src={BUILDING_ICONS[selected]} 
+                width={48} 
+                height={48} 
+                alt="" 
+                className="icon-tile"
+              />
+              <div>
+                <h3 className="text-xl font-bold">{selected}</h3>
+                <p className="text-gray-600">Level {city.buildings?.[selected] ?? 0}</p>
+              </div>
+            </div>
+            <div className="text-sm">Zum Ausbau auf Level {city.buildings?.[selected] ?? 0 + 1} benötigt:</div>
+            <div className="text-sm text-gray-800">Stein {numberFmt.format(getBuildingUpgradeCost(selected, city.buildings?.[selected] ?? 0).stone ?? 0)} · Holz {numberFmt.format(getBuildingUpgradeCost(selected, city.buildings?.[selected] ?? 0).wood ?? 0)} · Nahrung {numberFmt.format(getBuildingUpgradeCost(selected, city.buildings?.[selected] ?? 0).food ?? 0)} · Mana {numberFmt.format(getBuildingUpgradeCost(selected, city.buildings?.[selected] ?? 0).mana ?? 0)}</div>
+            <div className="text-xs text-gray-600">Dauer: ~{getBuildTimeSeconds(selected, city.buildings?.[selected] ?? 0 + 1)}s</div>
+            <button className="bg-black text-white rounded px-4 py-2 self-start" disabled={busy === selected} onClick={() => upgrade(selected)}>
+              {busy === selected ? "..." : "Ausbauen"}
+            </button>
+          </div>
         )}
       </Modal>
-    </div>
-  );
-}
-
-function BuildingDetails({ city, building, onUpgrade, busy }: { city: City; building: BuildingKey; onUpgrade: () => void; busy: boolean }) {
-  const level = city.buildings?.[building] ?? 0;
-  const cost = getBuildingUpgradeCost(building, level);
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="h-40 bg-gray-200 rounded" />
-      <div className="text-sm">Zum Ausbau auf Level {level + 1} benötigt:</div>
-      <div className="text-sm text-gray-800">Stein {numberFmt.format(cost.stone ?? 0)} · Holz {numberFmt.format(cost.wood ?? 0)} · Nahrung {numberFmt.format(cost.food ?? 0)} · Mana {numberFmt.format(cost.mana ?? 0)}</div>
-      <div className="text-xs text-gray-600">Dauer: ~{getBuildTimeSeconds(building, level + 1)}s</div>
-      <button className="bg-black text-white rounded px-4 py-2 self-start" disabled={busy} onClick={onUpgrade}>
-        {busy ? "..." : "Ausbauen"}
-      </button>
     </div>
   );
 }
