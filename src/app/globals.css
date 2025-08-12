@@ -3,6 +3,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --wood: #2b2118;
+  --bronze: #8b6b3b;
+  --bronze-light: #b69054;
+  --rune: #3aa5ff;
+  --rune-dim: #2e6ea6;
+  --panel: #121012;
+  --panel-2: #19171a;
+  --outline: #3a2b1b;
 }
 
 @theme inline {
@@ -24,3 +32,46 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Arcane UI theme */
+.ui-nav {
+  background: linear-gradient(180deg, rgba(0,0,0,0.4), rgba(0,0,0,0));
+  border-bottom: 1px solid var(--outline);
+}
+
+.ui-panel {
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+.ui-button {
+  border: 1px solid var(--bronze);
+  color: #fff;
+  background: linear-gradient(180deg, var(--bronze-light), var(--bronze));
+  border-radius: 6px;
+  transition: box-shadow .15s ease, transform .05s ease;
+}
+.ui-button:hover { box-shadow: 0 0 0 2px rgba(58,165,255,0.15), 0 0 12px rgba(58,165,255,0.25); }
+.ui-button:active { transform: translateY(1px); }
+
+.ui-link { color: var(--rune); text-decoration: underline; }
+.ui-link:hover { color: #7bc1ff; }
+
+.rune-divider {
+  height: 1px; width: 100%;
+  background: linear-gradient(90deg, transparent, var(--rune-dim), transparent);
+}
+
+.icon-tile {
+  width: 64px; height: 64px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
+  background: radial-gradient(60% 60% at 40% 35%, rgba(58,165,255,0.14) 0%, rgba(0,0,0,0) 60%), linear-gradient(180deg, #232026, #17151a);
+  border: 1px solid #2e2a30;
+}
+
+.wood-frame {
+  border: 1px solid #3b2a1c; border-radius: 10px; padding: 1px; background:
+    linear-gradient(180deg, rgba(139,107,59,0.2), rgba(139,107,59,0.05));
+}
+

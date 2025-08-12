@@ -1,8 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Chroniken von Aethelgard – MMO-Aufbaustrategie (MVP)
 
 ## Getting Started
 
-First, run the development server:
+1) Install dependencies (use Command Prompt if PowerShell blocks npm)
+
+```
+npm install
+```
+
+2) Configure environment in `.env`:
+
+```
+DATABASE_URL="file:./dev.db"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="dev_secret_change_me"
+```
+
+3) Prisma
+
+```
+npx prisma generate
+npx prisma migrate dev --name init
+```
+
+4) Run the development server:
 
 ```bash
 npm run dev
@@ -15,6 +36,13 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+Game overview
+
+- Auth (Credentials)
+- Player auto-creation with starter city on signup
+- Tick-based resource production (manual API trigger in MVP)
+- Dashboard and City views
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
