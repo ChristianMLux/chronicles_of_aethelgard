@@ -1,70 +1,85 @@
-import { onSchedule } from "firebase-functions/v2/scheduler";
-
+import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// Definiere die Produktionsraten pro Level für jedes Gebäude / hour
 const PRODUCTION_RATES = {
-  farm: 1000,
-  sawmill: 1000,
-  quarry: 800,
-  manamine: 500,
+  farm: 100000,
+  sawmill: 10000,
+  quarry: 60000,
+  manamine: 40000,
 };
 
-/**
- * Eine geplante Cloud Function, die alle 5 Minuten ausgeführt wird.
- * Sie berechnet die Ressourcenproduktion für alle Städte seit dem letzten Tick.
- */
-export const gameTick = onSchedule("every 5 minutes", async () => {
-  const now = admin.firestore.Timestamp.now();
-  const citiesRef = db.collection("cities");
-  const snapshot = await citiesRef.get();
+export const resourceTick = functions.https.onRequest(async (req, res) => {
+  try {
+    const usersSnapshot = await db.collection("users").get();
+    let totalUpdatedCities = 0;
+    const batch = db.batch();
 
-  if (snapshot.empty) {
-    console.log("No cities found. Skipping tick.");
-    return;
-  }
+    for (const userDoc of usersSnapshot.docs) {
+      const citiesSnapshot = await userDoc.ref.collection("cities").get();
 
-  const batch = db.batch();
-  let updatedCities = 0;
+      if (citiesSnapshot.empty) {
+        continue;
+      }
 
-  snapshot.forEach(doc => {
-    const city = doc.data();
-    const cityRef = doc.ref;
+      citiesSnapshot.forEach((cityDoc) => {
+        const city = cityDoc.data();
+        const cityRef = cityDoc.ref;
 
-    // Zeit seit dem letzten Update in Stunden berechnen
-    const lastUpdated = city.lastUpdated || now;
-    const hoursPassed = (now.seconds - lastUpdated.seconds) / 3600;
+        const now = admin.firestore.Timestamp.now();
+        const lastUpdated = city.lastTickAt || now; 
+        
+        const secondsPassed = now.seconds - lastUpdated.seconds;
+        if (secondsPassed <= 0) {
+          return;
+        }
+        const hoursPassed = secondsPassed / 3600;
 
-    if (hoursPassed <= 0) {
-      return;
+        const farmLevel = city.buildings?.farm ?? 0;
+        const sawmillLevel = city.buildings?.sawmill ?? 0;
+        const quarryLevel = city.buildings?.quarry ?? 0;
+        const manamineLevel = city.buildings?.manamine ?? 0;
+
+        const foodProduction = farmLevel * PRODUCTION_RATES.farm * hoursPassed;
+        const woodProduction = sawmillLevel * PRODUCTION_RATES.sawmill * hoursPassed;
+        const stoneProduction = quarryLevel * PRODUCTION_RATES.quarry * hoursPassed;
+        const manaProduction = manamineLevel * PRODUCTION_RATES.manamine * hoursPassed;
+
+        const currentFood = city.resources?.food ?? 0;
+        const currentWood = city.resources?.wood ?? 0;
+        const currentStone = city.resources?.stone ?? 0;
+        const currentMana = city.resources?.mana ?? 0;
+
+        let newFood = Math.floor(currentFood + foodProduction);
+        let newWood = Math.floor(currentWood + woodProduction);
+        let newStone = Math.floor(currentStone + stoneProduction);
+        let newMana = Math.floor(currentMana + manaProduction);
+
+        newFood = Math.min(newFood, city.capacity?.food ?? newFood);
+        newWood = Math.min(newWood, city.capacity?.wood ?? newWood);
+        newStone = Math.min(newStone, city.capacity?.stone ?? newStone);
+        newMana = Math.min(newMana, city.capacity?.mana ?? newMana);
+
+        batch.update(cityRef, {
+          "resources.food": newFood,
+          "resources.wood": newWood,
+          "resources.stone": newStone,
+          "resources.mana": newMana,
+          "lastTickAt": now,
+        });
+        totalUpdatedCities++;
+      });
     }
 
-    // Neue Ressourcen berechnen
-    const newFood = city.resources.food + (city.buildings.farm * PRODUCTION_RATES.farm * hoursPassed);
-    const newWood = city.resources.wood + (city.buildings.sawmill * PRODUCTION_RATES.sawmill * hoursPassed);
-    const newStone = city.resources.stone + (city.buildings.quarry * PRODUCTION_RATES.quarry * hoursPassed);
-    const newMana = city.resources.mana + (city.buildings.manamine * PRODUCTION_RATES.manamine * hoursPassed);
+    await batch.commit();
+    const successMessage = `Game tick executed. Updated ${totalUpdatedCities} cities.`;
+    console.log(successMessage);
+    res.status(200).send({ status: "success", message: successMessage });
 
-    // TODO: Lagerkapazität implementieren und prüfen
-    // const maxStorage = city.storageCapacity;
-    // finalFood = Math.min(newFood, maxStorage);
-
-    // Update-Operation zum Batch hinzufügen
-    batch.update(cityRef, {
-      "resources.food": newFood,
-      "resources.wood": newWood,
-      "resources.stone": newStone,
-      "resources.mana": newMana,
-      "lastUpdated": now, // Den Zeitpunkt des Updates speichern
-    });
-    updatedCities++;
-  });
-
-  // Alle Updates in einer einzigen Transaktion ausführen
-  await batch.commit();
-
-  console.log(`Game tick executed. Updated ${updatedCities} cities.`);
+  } catch (error) {
+    console.error("Error executing game tick:", error);
+    res.status(500).send({ status: "error", message: "Internal Server Error" });
+  }
 });
