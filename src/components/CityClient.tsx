@@ -29,71 +29,21 @@ type City = {
 export default function CityClient({ cityId }: { cityId: string }) {
   const db = useMemo(() => getDb(), []);
   const [city, setCity] = useState<City | null>(null);
-  const [loadingTick, setLoadingTick] = useState(false);
+
 
   useEffect(() => {
     const ref = doc(db, "cities", cityId);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) setCity(snap.data() as City);
     });
-    const id = setInterval(() => void doTick(), 5000);
+   
     return () => {
       unsub();
-      clearInterval(id);
+ 
     };
   }, []);
 
-  const doTick = async () => {
-    setLoadingTick(true);
-    try {
-      await runTransaction(db, async (trx) => {
-        const ref = doc(db, "cities", cityId);
-        const snap = await trx.get(ref);
-        if (!snap.exists()) return;
-        const c = snap.data() as City;
-        const now = Date.now();
-        const elapsedSec = Math.max(0, (now - (c.lastTickAt ?? now)) / 1000);
-        if (elapsedSec <= 0) return;
-        const prod = c.production || {};
-        const addAmt = (perHour?: number) => ((perHour ?? 0) / 3600) * elapsedSec;
-        const next: Partial<City> = {
-          stone: Math.min(c.stone + addAmt(prod.Stein), c.capStone),
-          wood: Math.min(c.wood + addAmt(prod.Holz), c.capWood),
-          food: Math.min(c.food + addAmt(prod.Nahrung), c.capFood),
-          mana: Math.min(c.mana + addAmt(prod.Mana), c.capMana),
-          lastTickAt: now,
-          updatedAt: serverTimestamp(),
-        };
-        // process build queue completion
-        if (c.buildQueue && c.buildQueue.length > 0) {
-          const remaining: BuildTask[] = [];
-          let buildings = { ...(c.buildings ?? {}) };
-          for (const task of c.buildQueue) {
-            const endAt = task.startedAt + task.durationSec * 1000;
-            if (now >= endAt) {
-              buildings[task.building] = task.targetLevel;
-            } else {
-              remaining.push(task);
-            }
-          }
-          (next as any).buildings = buildings;
-          (next as any).buildQueue = remaining;
-        }
-        trx.update(ref, next as any);
-      });
-      // Log report
-      if (city) {
-        await addDoc(collection(db, "reports"), {
-          type: "tick",
-          cityId,
-          message: `Ressourcen in ${city.name} aktualisiert`,
-          createdAt: serverTimestamp(),
-        });
-      }
-    } finally {
-      setLoadingTick(false);
-    }
-  };
+  
 
   if (!city) return <div className="p-6">Lade Stadt...</div>;
 
@@ -121,17 +71,6 @@ export default function CityClient({ cityId }: { cityId: string }) {
           </div>
         </div>
       )}
-      <button
-        onClick={doTick}
-        className="self-start ui-button px-3 py-2"
-        disabled={loadingTick}
-      >
-        {loadingTick ? "Aktualisiere..." : "Tick ausführen"}
-      </button>
     </div>
   );
 }
-
-// old card removed; ResourceBar used instead
-
-
