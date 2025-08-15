@@ -1,108 +1,101 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { doc, onSnapshot, DocumentData } from "firebase/firestore";
-import { getDb } from "../../firebase";
+import { useState, useEffect } from "react";
+import { doc, onSnapshot, getFirestore } from "firebase/firestore";
+import { getFirebaseApp } from "../../firebase";
+import Link from "next/link";
 import ResourceBar from "./ResourceBar";
+import { CityData } from "@/types";
 
-type BuildTask = {
-    building: string;
-    targetLevel: number;
-    startedAt: number;
-    durationSec: number;
-};
-
-interface City extends DocumentData {
-    id: string;
-    name: string;
-    x: number;
-    y: number;
-    location: {
-      continent: string;
-      region: string;
-      territory: number;
-  };
-    resources: {
-        food: number;
-        wood: number;
-        stone: number;
-        mana: number;
-        godtears: number;
-    };
-    buildings?: Record<string, number>;
-    buildQueue?: BuildTask[];
+interface CityClientProps {
+  initialCity: CityData;
 }
+const app = getFirebaseApp();
+const db = getFirestore(app);
 
-export default function CityClient({ cityId, userId }: { cityId: string, userId: string }) {
-    const [city, setCity] = useState<City | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+export default function CityClient({ initialCity }: CityClientProps) {
+  const [city, setCity] = useState<CityData>(initialCity);
 
-    useEffect(() => {
-        if (!cityId || !userId) {
-            setError("City ID or User ID is missing.");
-            setLoading(false);
-            return;
-        };
-        const db = getDb();
-        const cityRef = doc(db, "users", userId, "cities", cityId);
-
-        const unsubscribe = onSnapshot(cityRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setCity({ id: docSnap.id, ...docSnap.data() } as City);
-            } else {
-                setError("City not found.");
-                setCity(null);
-            }
-            setLoading(false);
-        }, (err) => {
-            console.error("Error fetching city data:", err);
-            setError("Failed to load city data.");
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-
-    }, [cityId, userId]);
-
-    if (loading) {
-        return <div className="p-6">Loading city...</div>;
-    }
-
-    if (error) {
-        return <div className="p-6 text-red-500">Error: {error}</div>;
-    }
-
-    if (!city) {
-        return <div className="p-6">No city data available.</div>;
-    }
-
-    return (
-        <div className="p-6 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold">{city.name}</h1>
-                <span className="text-sm text-gray-600">{city.continent} / {city.region} ({city.territory})</span>
-            </div>
-            <div className="flex gap-3 text-sm">
-                <a className="ui-link" href={`/city/${cityId}/buildings`}>Gebäude</a>
-                <a className="ui-link" href={`/research`}>Forschung</a>
-                <a className="ui-link" href={`/army?city=${cityId}`}>Armee</a>
-                <a className="ui-link" href={`/world?city=${cityId}`}>Welt</a>
-                <a className="ui-link" href={`/reports`}>Berichte</a>
-            </div>
-            <ResourceBar resources={city.resources} />
-            {city.buildQueue && city.buildQueue.length > 0 && (
-                <div className="ui-panel p-3">
-                    <div className="font-medium mb-2">Aktive Aufträge</div>
-                    <div className="grid gap-1 text-sm">
-                        {city.buildQueue.map((t: BuildTask, i: number) => (
-                            <div key={i}>
-                                Bau {t.building} → L{t.targetLevel} – {Math.max(0, Math.ceil((t.startedAt + t.durationSec * 1000 - Date.now()) / 1000))}s verbleibend
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
+  useEffect(() => {
+    const docRef = doc(
+      db,
+      "users",
+      initialCity.ownerId,
+      "cities",
+      initialCity.id
     );
+
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const updatedData = {
+          ...docSnap.data(),
+          id: initialCity.id,
+          ownerId: initialCity.ownerId,
+          location: {
+            ...docSnap.data().location,
+            continent: initialCity.location.continent,
+            territory: initialCity.location.territory,
+            region: initialCity.location.region,
+          },
+        } as CityData;
+
+        setCity(updatedData);
+      } else {
+        console.error("City document does not exist!");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [
+    initialCity.id,
+    initialCity.ownerId,
+    initialCity.location.continent,
+    initialCity.location.territory,
+    initialCity.location.region,
+  ]);
+
+  if (!city.resources) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        Loading City...
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <ResourceBar resources={city.resources} />
+
+      <div className="max-w-7xl mx-auto mt-8">
+        <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+          <h1 className="text-4xl font-bold">{city.name}</h1>
+          <p className="text-xl text-gray-400">
+            {city.location?.region || "Unknown Region"},{" "}
+            {city.location?.continent || "Unknown Continent"}
+          </p>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-gray-800 p-4 rounded-lg text-center hover:bg-gray-700 transition-colors">
+            <Link
+              href={`/city/${city.id}/buildings`}
+              className="text-2xl font-semibold"
+            >
+              Buildings
+            </Link>
+          </div>
+          <div className="bg-gray-800 p-4 rounded-lg text-center hover:bg-gray-700 transition-colors">
+            <Link href="/army" className="text-2xl font-semibold">
+              Army
+            </Link>
+          </div>
+          <div className="bg-gray-800 p-4 rounded-lg text-center hover:bg-gray-700 transition-colors">
+            <Link href="/research" className="text-2xl font-semibold">
+              Research
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
