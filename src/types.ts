@@ -76,12 +76,7 @@ export interface RawCityData {
   id: string;
   name: string;
   ownerId: string;
-  location: {
-    continent: string;
-    territory: string;
-    continentName: string;
-    territoryName: string;
-  };
+  location: Location;
   resources?: Partial<Resources>;
   createdAt?: TimestampField;
   updatedAt?: TimestampField;

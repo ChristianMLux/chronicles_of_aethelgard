@@ -6,6 +6,7 @@ import { getFirebaseApp } from "../../firebase";
 import Link from "next/link";
 import ResourceBar from "./ResourceBar";
 import { CityData } from "@/types";
+import CityHeader from "./CityHeader";
 
 interface CityClientProps {
   initialCity: CityData;
@@ -66,14 +67,8 @@ export default function CityClient({ initialCity }: CityClientProps) {
     <div className="min-h-screen bg-gray-900 text-white p-4">
       <ResourceBar resources={city.resources} />
 
-      <div className="max-w-7xl mx-auto mt-8">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-          <h1 className="text-4xl font-bold">{city.name}</h1>
-          <p className="text-xl text-gray-400">
-            {city.location?.region || "Unknown Region"},{" "}
-            {city.location?.continent || "Unknown Continent"}
-          </p>
-        </div>
+      <div className="max-w-7xl mx-auto">
+        <CityHeader city={city} />
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-gray-800 p-4 rounded-lg text-center hover:bg-gray-700 transition-colors">
