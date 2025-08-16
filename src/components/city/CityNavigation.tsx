@@ -28,7 +28,7 @@ const CityNavigation: React.FC = () => {
   ];
 
   return (
-    <nav className="flex justify-center items-center gap-x-6 sm:gap-x-20 -mt-5 z-10 relative">
+    <nav className="flex justify-center items-center gap-x-6 sm:gap-x-20  z-10 relative">
       {navItems.map((item) => (
         <TabButton
           key={item.href}

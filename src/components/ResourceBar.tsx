@@ -35,7 +35,7 @@ export default function ResourceBar() {
   ];
 
   return (
-    <div className="flex justify-center gap-4">
+    <div className="flex justify-center gap-4 mt-2">
       {resources.map((resource) => (
         <div
           key={resource.name}

@@ -25,13 +25,13 @@ export default async function CityLayout({
   const cityData = serializeCityData(rawCityData);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white pl-4 pr-4">
+    <div className="min-h-screen bg-gray-900 text-white pl-4 pr-4 pt-10">
       <CityDataProvider initialCity={cityData}>
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto ">
           <CityHeader city={cityData} />
           <CityNavigation />
 
-          <div className="mt-8 animate-fadeIn">{children}</div>
+          <div>{children}</div>
         </div>
       </CityDataProvider>
     </div>

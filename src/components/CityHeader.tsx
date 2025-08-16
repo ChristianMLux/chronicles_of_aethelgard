@@ -59,7 +59,7 @@ const CityHeader: React.FC<CityHeaderProps> = ({ city }) => {
     <div className="relative rounded-lg shadow-lg text-white overflow-hidden min-h-[100px] md:min-h-[12rem] lg:min-h-[220px] flex items-center justify-center">
       <div className="absolute inset-0 flex z-0">
         <div
-          className="h-full flex-shrink-0"
+          className="h-full flex-shrink-0 mt-10"
           style={{
             width: `${END_CAP_WIDTH}px`,
             backgroundImage: `url(${imagePath}left_end.png)`,
@@ -70,7 +70,7 @@ const CityHeader: React.FC<CityHeaderProps> = ({ city }) => {
 
         <div
           ref={middleSectionRef}
-          className="flex-grow h-full flex overflow-hidden"
+          className="flex-grow h-full flex overflow-hidden  mt-10"
         >
           {middleSegments.map((src, index) => (
             <div
@@ -94,7 +94,7 @@ const CityHeader: React.FC<CityHeaderProps> = ({ city }) => {
         </div>
 
         <div
-          className="h-full flex-shrink-0"
+          className="h-full flex-shrink-0  mt-10"
           style={{
             width: `${END_CAP_WIDTH}px`,
             backgroundImage: `url(${imagePath}right_end.png)`,
@@ -104,7 +104,7 @@ const CityHeader: React.FC<CityHeaderProps> = ({ city }) => {
         />
       </div>
 
-      <div className="relative z-10 bg-transparent p-6 rounded-md flex items-center text-center">
+      <div className="  mt-18 relative z-10 bg-transparent p-6 rounded-md flex items-center text-center">
         <div className="">
           <h1
             className="text-2xl font-bold mx-2"
