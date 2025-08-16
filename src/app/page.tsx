@@ -7,37 +7,52 @@ export default function Home() {
   const auth = getFirebaseAuth();
   const [user] = useAuthState(auth);
   return (
-    <div className="p-8 flex flex-col items-center gap-6">
-      <h1 className="text-3xl font-semibold">Chroniken von Aethelgard</h1>
-      <div className="w-full max-w-3xl grid gap-6 md:grid-cols-2">
-        <div className="border rounded p-4 bg-black/5">
-          <h2 className="font-semibold mb-2">Die Welt von Aethelgard</h2>
-          <p className="text-sm leading-6">
-            Nach dem Großen Bruch ist Aethelgard zersplittert. Aus den Ruinen erheben sich neue Reiche – dein Volk findet einen Splitter einer Götterträne und schafft einen sicheren Hafen. Erforsche arkanes Wissen, erweitere dein Königreich und stelle dich den Gefahren einer lebendigen Welt.
-          </p>
-        </div>
-        <div className="border rounded p-4">
-          <h2 className="font-semibold mb-2">Spielprinzip</h2>
-          <ul className="list-disc list-inside text-sm leading-6">
-            <li>Baue Städte und steigere Produktion</li>
-            <li>Erforsche Magie und Technologien</li>
-            <li>Rekrutiere Armeen und sende Missionen</li>
-            <li>Erlebe eine persistente MMO-Welt</li>
-          </ul>
+    <main className="relative min-h-screen flex flex-col items-center justify-center text-white p-8 overflow-hidden">
+      <div
+        className="absolute inset-0 bg-cover bg-center brightness-75"
+        style={{
+          backgroundImage: "url('/assets/ui/background_landing.jpg')",
+          transform: "scale(1.05)",
+        }}
+      />
+      <div className="absolute inset-0 bg-black/60"></div>
+
+      <div className="relative z-10 flex flex-col items-center gap-6 text-center animate-fadeIn">
+        <h1 className="text-5xl md:text-6xl font-bold tracking-tighter text-shadow-lg">
+          Chroniken von Aethelgard
+        </h1>
+        <p className="max-w-2xl text-lg text-gray-200 text-shadow">
+          Nach dem Großen Bruch ist Aethelgard zersplittert. Erhebe dein Reich
+          aus den Ruinen, erforsche arkane Mächte und schmiede dein Schicksal in
+          einer persistenten Welt.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-4 mt-4">
+          {user ? (
+            <Link
+              className="ui-button px-8 py-3 text-lg font-semibold"
+              href="/dashboard"
+            >
+              Zum Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                className="ui-button px-8 py-3 text-lg font-semibold"
+                href="/auth/signin"
+              >
+                Anmelden
+              </Link>
+              <Link
+                className="border border-white/50 rounded-md px-8 py-3 text-lg font-semibold hover:bg-white/10 transition-colors"
+                href="/auth/signup"
+              >
+                Registrieren
+              </Link>
+            </>
+          )}
         </div>
       </div>
-      <div className="flex gap-3">
-        {user ? (
-          <>
-            <Link className="border rounded px-4 py-2" href="/dashboard">Zum Dashboard</Link>
-          </>
-        ) : (
-          <>
-            <Link className="border rounded px-4 py-2" href="/auth/signin">Anmelden</Link>
-            <Link className="border rounded px-4 py-2" href="/auth/signup">Registrieren</Link>
-          </>
-        )}
-      </div>
-    </div>
+    </main>
   );
 }

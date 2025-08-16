@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/user";
-import CityBuildingsClient from "@/components/CityBuildingsClient";
+import ResearchClient from "@/components/ResearchClient";
 
-export default async function BuildingsPage({
+export default async function ResearchPage({
   params,
 }: {
   params: { id: string };
@@ -12,5 +12,5 @@ export default async function BuildingsPage({
     redirect("/auth/signin");
   }
 
-  return <CityBuildingsClient cityId={params.id} userId={userId} />;
+  return <ResearchClient cityId={params.id} userId={userId} />;
 }

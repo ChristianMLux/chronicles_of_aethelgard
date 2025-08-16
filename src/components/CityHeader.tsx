@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { RawCityData } from "@/types";
+import ResourceBar from "./ResourceBar";
 
 interface CityHeaderProps {
   city: RawCityData;
@@ -55,14 +56,14 @@ const CityHeader: React.FC<CityHeaderProps> = ({ city }) => {
   }, [generateSegments]);
 
   return (
-    <div className="relative rounded-lg shadow-lg text-white overflow-hidden min-h-[180px] md:min-h-[200px] lg:min-h-[220px] flex items-center justify-center">
+    <div className="relative rounded-lg shadow-lg text-white overflow-hidden min-h-[100px] md:min-h-[12rem] lg:min-h-[220px] flex items-center justify-center">
       <div className="absolute inset-0 flex z-0">
         <div
           className="h-full flex-shrink-0"
           style={{
             width: `${END_CAP_WIDTH}px`,
             backgroundImage: `url(${imagePath}left_end.png)`,
-            backgroundSize: "cover",
+            backgroundSize: "100% 225%",
             backgroundPosition: "left center",
           }}
         />
@@ -103,20 +104,24 @@ const CityHeader: React.FC<CityHeaderProps> = ({ city }) => {
         />
       </div>
 
-      <div className="relative z-10 bg-transparent p-6 rounded-md inline-block text-center">
-        <h1
-          className="text-4xl font-bold"
-          style={{ textShadow: "2px 2px 4px rgba(0, 0, 0, 0.7)" }}
-        >
-          {city.name}
-        </h1>
-        <p
-          className="text-xl text-gray-300"
-          style={{ textShadow: "1px 1px 3px rgba(0, 0, 0, 0.7)" }}
-        >
-          {city.location?.region || "Unknown Region"},{" "}
-          {city.location?.continent || "Unknown Continent"}
-        </p>
+      <div className="relative z-10 bg-transparent p-6 rounded-md flex items-center text-center">
+        <div className="">
+          <h1
+            className="text-2xl font-bold mx-2"
+            style={{ textShadow: "2px 2px 4px rgba(0, 0, 0, 0.7)" }}
+          >
+            {city.name}
+          </h1>
+          <p
+            className="text-xl text-gray-300"
+            style={{ textShadow: "1px 1px 3px rgba(0, 0, 0, 0.7)" }}
+          >
+            {city.location?.region || "Unknown Region"},{" "}
+            {city.location?.continent || "Unknown Continent"}
+          </p>
+        </div>
+
+        <ResourceBar />
       </div>
     </div>
   );

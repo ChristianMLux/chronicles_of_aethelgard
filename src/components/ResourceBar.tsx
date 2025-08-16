@@ -1,33 +1,59 @@
 "use client";
+
+import { useCityData } from "./CityDataProvider";
 import { numberFmt } from "@/lib/game";
 import Image from "next/image";
 
-type Resources = {
-    stone: number;
-    wood: number;
-    food: number;
-    mana: number;
-};
+export default function ResourceBar() {
+  const { city } = useCityData();
 
-export default function ResourceBar({ resources }: { resources: Resources }) {
-    return (
-        <div className="ui-panel p-3 flex items-center gap-4 overflow-auto">
-            <Res label="Stein" icon="/assets/icons/resources/stone.png" value={resources.stone} />
-            <Res label="Holz" icon="/assets/icons/resources/wood.png" value={resources.wood} />
-            <Res label="Nahrung" icon="/assets/icons/resources/food.png" value={resources.food} />
-            <Res label="Mana" icon="/assets/icons/resources/mana.png" value={resources.mana} />
-        </div>
-    );
-}
+  if (!city.resources) {
+    return null;
+  }
 
-function Res({ label, icon, value }: { label: string; icon: string; value: number }) {
-    return (
-        <div className="flex items-center gap-2 min-w-[140px]">
-            <Image src={icon} alt={label} width={20} height={20} className="icon-tile" />
-            <div className="text-sm">
-                <div className="text-gray-400 leading-3">{label}</div>
-                <div className="font-semibold">{numberFmt.format(Math.floor(value))}</div>
-            </div>
+  const resources = [
+    {
+      name: "Stein",
+      value: city.resources.stone,
+      icon: "/assets/icons/resources/stone.png",
+    },
+    {
+      name: "Holz",
+      value: city.resources.wood,
+      icon: "/assets/icons/resources/wood.png",
+    },
+    {
+      name: "Nahrung",
+      value: city.resources.food,
+      icon: "/assets/icons/resources/food.png",
+    },
+    {
+      name: "Mana",
+      value: city.resources.mana,
+      icon: "/assets/icons/resources/mana.png",
+    },
+  ];
+
+  return (
+    <div className="flex justify-center gap-4">
+      {resources.map((resource) => (
+        <div
+          key={resource.name}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg m-4 min-w-[10rem]"
+        >
+          <Image
+            src={resource.icon}
+            alt={resource.name}
+            width={512}
+            height={512}
+            className="w-12 h-12"
+          />
+          <div className="text-sm">
+            <div className="text-gray-400">{resource.name}</div>
+            <div className="font-bold">{numberFmt.format(resource.value)}</div>
+          </div>
         </div>
-    );
+      ))}
+    </div>
+  );
 }
