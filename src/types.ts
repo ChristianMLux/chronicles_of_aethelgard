@@ -8,53 +8,52 @@ export interface Location {
   territoryName: string;
 }
 
+export type BuildingKey = "sawmill" | "manamine" | "farm" | "quarry";
+export type ResourceKey = "stone" | "wood" | "food" | "mana";
+
+export type level = number;
+
 export interface Buildings {
-  farm: number;
-  manamine: number;
-  quarry: number;
-  sawmill: number;
+  farm: level;
+  manamine: level;
+  quarry: level;
+  sawmill: level;
 }
 
-export interface Queue {
-  name: string;
-  duration: number;
-  startedAt: number;
+export interface BuildingQueueItem {
+  id: string;
+  buildingId: BuildingKey;
   targetLevel: number;
-}
-
-export interface BuildingQueue {
-  quarry?: Queue;
-  sawmill?: Queue;
-  farm?: Queue;
-  manamine?: Queue;
+  startTime: Timestamp;
+  endTime: Timestamp;
 }
 
 export interface Resources {
+  [key: string]: number;
   stone: number;
   wood: number;
   food: number;
   mana: number;
 }
 
-export interface CityData {
+export interface City {
   id: string;
-  name: string;
+  userId: string;
   ownerId: string;
+  name: string;
   location: Location;
   resources: Resources;
 
-  createdAt?: string;
-  updatedAt?: string;
-  lastTickAt?: string;
-
+  buildings: Buildings;
+  buildingQueue: BuildingQueueItem[];
   buildingSlots?: number;
   defense?: number;
   workforce?: number;
   capacity?: number;
 
-  buildings?: Buildings;
-  buildQueue?: BuildingQueue;
-
+  createdAt?: string;
+  updatedAt?: string;
+  lastTickAt?: string;
   [key: string]: unknown;
 }
 
@@ -86,6 +85,20 @@ export interface RawCityData {
   workforce?: number;
   capacity?: number;
   buildings?: Partial<Buildings>;
-  buildQueue?: BuildingQueue;
+  buildingQueue?: BuildingQueueItem[];
   [key: string]: unknown;
+}
+
+export interface BuildingLevelConfig {
+  level: number;
+  cost: Partial<Record<ResourceKey, number>>;
+  constructionTime: number; // in seconds
+}
+
+export interface GameConfig {
+  buildings: {
+    [key in BuildingKey]: {
+      [level: number]: BuildingLevelConfig;
+    };
+  };
 }

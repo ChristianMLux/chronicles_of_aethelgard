@@ -1,245 +1,267 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  doc,
-  onSnapshot,
-  runTransaction,
-  DocumentData,
-} from "firebase/firestore";
-import { getDb } from "../../firebase";
-import {
-  BUILDING_LIST,
-  BUILDING_ICONS,
-  BuildingKey,
-  getBuildingUpgradeCost,
-  canAfford,
-  getBuildTimeSeconds,
-  numberFmt,
-} from "@/lib/game";
-import Modal from "@/components/Modal";
-import Image from "next/image";
+import { useState, useEffect, useRef } from "react";
+import { useCity } from "./CityDataProvider";
+import { BuildingKey, City, BuildingQueueItem } from "@/types";
+import { buildingConfig, BuildingTypeConfig } from "@/lib/game";
+import Modal from "./Modal";
+import { ResourceBar } from "./ResourceBar";
+import { Clock } from "lucide-react";
+import Image from "next/image"; // NEU: Image-Komponente importieren
 
-type BuildTask = {
-  building: string;
-  targetLevel: number;
-  startedAt: number;
-  durationSec: number;
-};
-interface City extends DocumentData {
-  id: string;
-  name: string;
-  resources: { food: number; wood: number; stone: number; mana: number };
-  buildings: Record<string, number>;
-  buildQueue?: BuildTask[];
+// Hilfsfunktion zur Formatierung der verbleibenden Zeit
+function formatTime(seconds: number): string {
+  if (seconds <= 0) return "00:00:00";
+  const h = Math.floor(seconds / 3600)
+    .toString()
+    .padStart(2, "0");
+  const m = Math.floor((seconds % 3600) / 60)
+    .toString()
+    .padStart(2, "0");
+  const s = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${h}:${m}:${s}`;
 }
 
-export default function CityBuildingsClient({
-  cityId,
-  userId,
-}: {
-  cityId: string;
-  userId: string;
-}) {
-  const [city, setCity] = useState<City | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTimestampInMs(timeValue: any): number {
+  if (timeValue && typeof timeValue.toDate === "function")
+    return timeValue.toDate().getTime();
+  if (timeValue && typeof timeValue.seconds === "number")
+    return timeValue.seconds * 1000;
+  if (timeValue instanceof Date) return timeValue.getTime();
+  if (typeof timeValue === "string") {
+    const date = new Date(timeValue);
+    if (!isNaN(date.getTime())) return date.getTime();
+  }
+  return Date.now();
+}
+
+export function CityBuildingsClient() {
+  const { city, loading } = useCity();
   const [selected, setSelected] = useState<BuildingKey | null>(null);
+  const [busy, setBusy] = useState<BuildingKey | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const isProcessing = useRef(false);
 
   useEffect(() => {
-    if (!cityId || !userId) return;
-    const db = getDb();
-    const cityRef = doc(db, "users", userId, "cities", cityId);
-    const unsubscribe = onSnapshot(cityRef, (snap) => {
-      if (snap.exists()) {
-        setCity({ id: snap.id, ...snap.data() } as City);
-      } else {
-        setCity(null);
-      }
-    });
-    return () => unsubscribe();
-  }, [cityId, userId]);
+    const interval = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (
+      !city?.buildingQueue ||
+      city.buildingQueue.length === 0 ||
+      isProcessing.current
+    ) {
+      return;
+    }
+
+    const hasCompletedBuilds = city.buildingQueue.some(
+      (item) => getTimestampInMs(item.endTime) <= Date.now()
+    );
+
+    if (hasCompletedBuilds) {
+      const processBuilds = async () => {
+        isProcessing.current = true;
+        try {
+          await fetch("/api/game/build/process-builds", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cityId: city.id }),
+          });
+        } catch (err) {
+          console.error("Fehler beim Verarbeiten der Bauten:", err);
+        } finally {
+          isProcessing.current = false;
+        }
+      };
+      processBuilds();
+    }
+  }, [city, currentTime]);
 
   async function upgrade(building: BuildingKey) {
+    if (!city) return;
     setBusy(building);
+    setError(null);
+
     try {
-      const db = getDb();
-      await runTransaction(db, async (trx) => {
-        const ref = doc(db, "users", userId, "cities", cityId);
-        const snap = await trx.get(ref);
-        if (!snap.exists()) throw new Error("Stadt nicht gefunden");
-
-        const c = snap.data() as City;
-        const level = c.buildings?.[building] ?? 0;
-        const cost = getBuildingUpgradeCost(building, level);
-
-        if (!canAfford(c.resources, cost))
-          throw new Error("Nicht genügend Ressourcen");
-
-        const queue = [...(c.buildQueue ?? [])];
-        const targetLevel = level + 1;
-        const durationSec = getBuildTimeSeconds(building, targetLevel);
-        queue.push({
-          building,
-          targetLevel,
-          startedAt: Date.now(),
-          durationSec,
-        });
-
-        trx.update(ref, {
-          buildQueue: queue,
-          "resources.stone": c.resources.stone - (cost.stone ?? 0),
-          "resources.wood": c.resources.wood - (cost.wood ?? 0),
-          "resources.food": c.resources.food - (cost.food ?? 0),
-          "resources.mana": c.resources.mana - (cost.mana ?? 0),
-        });
+      const response = await fetch("/api/game/build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cityId: city.id, buildingId: building }),
       });
-    } catch (error) {
-      alert((error as Error).message);
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Ein Fehler ist aufgetreten.");
+      setSelected(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ein unerwarteter Fehler.");
     } finally {
       setBusy(null);
     }
   }
 
-  if (!city) return <div className="p-6">Lade...</div>;
+  if (loading) return <div>Lade Stadt-Daten...</div>;
+  if (!city) return <div>Stadt nicht gefunden.</div>;
+
+  const getBuildingQueueItem = (
+    buildingId: BuildingKey
+  ): BuildingQueueItem | undefined => {
+    return city.buildingQueue?.find((item) => item.buildingId === buildingId);
+  };
 
   return (
-    <div className="p-6 flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Gebäude ausbauen</h1>
-      <div className="grid gap-3">
-        {BUILDING_LIST.map((b) => {
-          const level = city.buildings?.[b] ?? 0;
-          const cost = getBuildingUpgradeCost(b, level);
-          const can = canAfford(city.resources, cost);
+    <div className="p-4">
+      <h2 className="text-xl font-bold mb-4">Gebäude</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Object.entries(buildingConfig).map(([key, config]) => {
+          const buildingKey = key as BuildingKey;
+          const currentLevel = city.buildings[buildingKey] || 0;
+          const queueItem = getBuildingQueueItem(buildingKey);
+          const isUpgrading = !!queueItem;
+          const targetLevel = isUpgrading
+            ? queueItem.targetLevel
+            : currentLevel + 1;
+
+          const remainingTime = queueItem
+            ? Math.max(
+                0,
+                (getTimestampInMs(queueItem.endTime) - currentTime) / 1000
+              )
+            : 0;
+
           return (
             <div
-              key={b}
-              className="border rounded p-3 flex items-center justify-between"
+              key={buildingKey}
+              className="bg-panel-2/50 p-4 rounded-lg border border-outline/50 flex flex-col"
             >
-              <div onClick={() => setSelected(b)} className="cursor-pointer">
-                <div className="font-medium flex items-center gap-2">
-                  <Image
-                    src={BUILDING_ICONS[b]}
-                    width={18}
-                    height={18}
-                    alt={b}
-                    className="icon-tile"
-                  />
-                  {b} — L{level}
+              <div className="flex items-start gap-4">
+                <Image
+                  src={config.icon}
+                  alt={config.name}
+                  width={64}
+                  height={64}
+                  className="rounded-md object-cover"
+                />
+                <div className="flex-grow">
+                  <h3 className="text-lg font-semibold">{config.name}</h3>
+                  <p className="text-sm text-gray-400">
+                    Level {currentLevel}
+                    {isUpgrading && ` (wird auf ${targetLevel} ausgebaut)`}
+                  </p>
                 </div>
-                <div className="text-sm text-gray-600">
-                  Kosten: S {numberFmt.format(cost.stone ?? 0)} / H{" "}
-                  {numberFmt.format(cost.wood ?? 0)} / F{" "}
-                  {numberFmt.format(cost.food ?? 0)} / M{" "}
-                  {numberFmt.format(cost.mana ?? 0)}
-                </div>
-                <div className="text-xs text-gray-600">
-                  Bauzeit: ~{getBuildTimeSeconds(b, level + 1)}s
-                </div>
-                {city.buildQueue
-                  ?.filter((t) => t.building === b)
-                  .map((t, idx) => (
-                    <div key={idx} className="text-xs text-gray-500">
-                      Bau läuft, endet in ~
-                      {Math.max(
-                        0,
-                        Math.ceil(
-                          (t.startedAt + t.durationSec * 1000 - Date.now()) /
-                            1000
-                        )
-                      )}
-                      s
-                    </div>
-                  ))}
               </div>
-              <button
-                className="border rounded px-3 py-1 disabled:opacity-50"
-                onClick={() => upgrade(b)}
-                disabled={!can || busy === b}
-              >
-                {busy === b ? "..." : "Ausbauen"}
-              </button>
+
+              <div className="mt-4 flex-grow flex items-end">
+                {isUpgrading ? (
+                  <div className="w-full flex items-center justify-center bg-gray-800 p-2 rounded-md">
+                    <Clock size={16} className="mr-2 text-yellow-400" />
+                    <span className="font-mono text-lg">
+                      {formatTime(remainingTime)}
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setSelected(buildingKey)}
+                    className="ui-button w-full"
+                    disabled={isUpgrading}
+                  >
+                    Ausbauen
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
-      <Modal
-        open={!!selected}
-        onClose={() => setSelected(null)}
-        title={
-          selected
-            ? `${selected} — L${city.buildings?.[selected] ?? 0}`
-            : undefined
-        }
-      >
-        {selected && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 mb-4">
-              <Image
-                src={BUILDING_ICONS[selected]}
-                width={48}
-                height={48}
-                alt={selected}
-                className="icon-tile"
-              />
-              <div>
-                <h3 className="text-xl font-bold">{selected}</h3>
-                <p className="text-gray-600">
-                  Level {city.buildings?.[selected] ?? 0}
-                </p>
-              </div>
-            </div>
-            <div className="text-sm">
-              Zum Ausbau auf Level {(city.buildings?.[selected] ?? 0) + 1}{" "}
-              benötigt:
-            </div>
-            <div className="text-sm text-gray-800">
-              Stein{" "}
-              {numberFmt.format(
-                getBuildingUpgradeCost(
-                  selected,
-                  city.buildings?.[selected] ?? 0
-                ).stone ?? 0
-              )}{" "}
-              · Holz{" "}
-              {numberFmt.format(
-                getBuildingUpgradeCost(
-                  selected,
-                  city.buildings?.[selected] ?? 0
-                ).wood ?? 0
-              )}{" "}
-              · Nahrung{" "}
-              {numberFmt.format(
-                getBuildingUpgradeCost(
-                  selected,
-                  city.buildings?.[selected] ?? 0
-                ).food ?? 0
-              )}{" "}
-              · Mana{" "}
-              {numberFmt.format(
-                getBuildingUpgradeCost(
-                  selected,
-                  city.buildings?.[selected] ?? 0
-                ).mana ?? 0
-              )}
-            </div>
-            <div className="text-xs text-gray-600">
-              Dauer: ~
-              {getBuildTimeSeconds(
-                selected,
-                (city.buildings?.[selected] ?? 0) + 1
-              )}
-              s
-            </div>
-            <button
-              className="bg-black text-white rounded px-4 py-2 self-start"
-              disabled={busy === selected}
-              onClick={() => upgrade(selected)}
-            >
-              {busy === selected ? "..." : "Ausbauen"}
-            </button>
-          </div>
-        )}
-      </Modal>
+      {selected && (
+        <Modal open={!!selected} onClose={() => setSelected(null)}>
+          <UpgradeModalContent
+            buildingKey={selected}
+            config={buildingConfig[selected]}
+            city={city}
+            onConfirm={upgrade}
+            onClose={() => setSelected(null)}
+            isBusy={busy === selected}
+            error={error}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function UpgradeModalContent({
+  buildingKey,
+  config,
+  city,
+  onConfirm,
+  onClose,
+  isBusy,
+  error,
+}: {
+  buildingKey: BuildingKey;
+  config: BuildingTypeConfig;
+  city: City;
+  onConfirm: (building: BuildingKey) => void;
+  onClose: () => void;
+  isBusy: boolean;
+  error: string | null;
+}) {
+  const currentLevel = city.buildings[buildingKey] || 0;
+  const nextLevel = currentLevel + 1;
+  const upgradeDetails = config.levels[nextLevel];
+
+  if (!upgradeDetails) {
+    return (
+      <div>
+        <h3 className="text-xl font-bold mb-2">{config.name}</h3>
+        <p>Maximale Stufe bereits erreicht.</p>
+        <button onClick={onClose} className="ui-button-secondary w-full mt-4">
+          Schließen
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="text-xl font-bold mb-2">
+        {config.name}: Level {nextLevel}
+      </h3>
+      <p className="text-sm text-gray-400 mb-4">
+        {upgradeDetails.description ||
+          "Verbessert die Effizienz dieses Gebäudes."}
+      </p>
+      <div className="space-y-2 mb-4">
+        <h4 className="font-semibold">Baukosten</h4>
+        <ResourceBar
+          resources={upgradeDetails.cost}
+          cityResources={city.resources}
+          mode="cost"
+        />
+        <div className="flex items-center text-sm">
+          <Clock size={14} className="mr-2" />
+          <span>Bauzeit: {formatTime(upgradeDetails.buildTime)}</span>
+        </div>
+      </div>
+      {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
+      <div className="flex gap-2 mt-6">
+        <button onClick={onClose} className="ui-button-secondary w-full">
+          Abbrechen
+        </button>
+        <button
+          onClick={() => onConfirm(buildingKey)}
+          className="ui-button w-full"
+          disabled={isBusy}
+        >
+          {isBusy ? "Wird gebaut..." : "Ausbau bestätigen"}
+        </button>
+      </div>
     </div>
   );
 }

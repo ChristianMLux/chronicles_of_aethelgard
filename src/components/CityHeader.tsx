@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { RawCityData } from "@/types";
-import ResourceBar from "./ResourceBar";
+import { City } from "@/types";
+import { ResourceBar } from "./ResourceBar";
 
 interface CityHeaderProps {
-  city: RawCityData;
+  city: City;
 }
 
 const SEGMENT_WIDTH = 120;

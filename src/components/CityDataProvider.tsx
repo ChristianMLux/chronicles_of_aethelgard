@@ -1,90 +1,98 @@
 "use client";
 
-import {
+import React, {
   createContext,
-  useContext,
-  useEffect,
   useState,
+  useContext,
   ReactNode,
+  useEffect,
 } from "react";
-import { doc, onSnapshot, getFirestore } from "firebase/firestore";
-import { getFirebaseApp } from "@/../firebase";
-import { CityData } from "@/types";
+import { City } from "@/types";
+import { doc, onSnapshot, Timestamp } from "firebase/firestore";
+import { useAuth } from "./AuthProvider";
+import { getDb } from "@/../firebase";
+
+const db = getDb();
 
 interface CityContextType {
-  city: CityData;
-  userId: string;
+  city: City | null;
+  setCity: React.Dispatch<React.SetStateAction<City | null>>;
+  loading: boolean;
 }
 
-const CityContext = createContext<CityContextType | null>(null);
+const CityContext = createContext<CityContextType | undefined>(undefined);
 
-export function useCityData() {
+export const useCity = () => {
   const context = useContext(CityContext);
   if (!context) {
-    throw new Error("useCityData must be used within CityDataProvider");
+    throw new Error("useCity must be used within a CityDataProvider");
   }
   return context;
-}
+};
 
 interface CityDataProviderProps {
-  initialCity: CityData;
+  initialCity: City;
   children: ReactNode;
 }
 
-export default function CityDataProvider({
+export function CityDataProvider({
   initialCity,
   children,
 }: CityDataProviderProps) {
-  const [city, setCity] = useState<CityData>(initialCity);
-  const app = getFirebaseApp();
-  const db = getFirestore(app);
+  const [city, setCity] = useState<City | null>(initialCity);
+  const [loading, setLoading] = useState<boolean>(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    const docRef = doc(
-      db,
-      "users",
-      initialCity.ownerId,
-      "cities",
-      initialCity.id
+    if (!initialCity.id || !user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const cityRef = doc(db, "users", user.uid, "cities", initialCity.id);
+
+    const unsubscribe = onSnapshot(
+      cityRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const cityData = {
+            id: docSnapshot.id,
+            ...docSnapshot.data(),
+          } as City;
+
+          if (cityData.buildingQueue) {
+            cityData.buildingQueueItem = cityData.buildingQueue.map((item) => {
+              const startTime =
+                item.startTime instanceof Timestamp
+                  ? item.startTime.toDate()
+                  : new Date();
+              const endTime =
+                item.endTime instanceof Timestamp
+                  ? item.endTime.toDate()
+                  : new Date();
+              return { ...item, startTime, endTime };
+            });
+          }
+
+          setCity(cityData);
+        } else {
+          console.error("City document does not exist!");
+          setCity(null);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to city data:", error);
+        setLoading(false);
+      }
     );
 
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const updatedData = {
-          ...docSnap.data(),
-          id: initialCity.id,
-          ownerId: initialCity.ownerId,
-          location: {
-            ...docSnap.data().location,
-            continent: initialCity.location.continent,
-            territory: initialCity.location.territory,
-            region: initialCity.location.region,
-            continentName: initialCity.location.continentName,
-            territoryName: initialCity.location.territoryName,
-          },
-        } as CityData;
-
-        setCity(updatedData);
-      } else {
-        console.error("City document does not exist!");
-      }
-    });
-
     return () => unsubscribe();
-  }, [
-    db,
-    initialCity.id,
-    initialCity.ownerId,
-    initialCity.location.continent,
-    initialCity.location.territory,
-    initialCity.location.region,
-    initialCity.location.continentName,
-    initialCity.location.territoryName,
-  ]);
+  }, [initialCity.id, user]);
 
-  return (
-    <CityContext.Provider value={{ city, userId: initialCity.ownerId }}>
-      {children}
-    </CityContext.Provider>
-  );
+  const value = { city, setCity, loading };
+
+  return <CityContext.Provider value={value}>{children}</CityContext.Provider>;
 }

@@ -1,3 +1,5 @@
+import { GameConfig } from "@/types";
+
 export type ResourceKey = "stone" | "wood" | "food" | "mana";
 
 export type BuildingKey = "sawmill" | "manamine" | "farm" | "quarry";
@@ -27,6 +29,47 @@ const BASE_BUILDING_COST: Record<
 };
 
 const COST_GROWTH_FACTOR = 1.5;
+const BASE_BUILD_TIME_SECONDS = 20;
+const BUILD_TIME_GROWTH_FACTOR = 1.25;
+
+export async function getGameConfig(): Promise<GameConfig> {
+  const config: GameConfig = {
+    buildings: {
+      quarry: {},
+      sawmill: {},
+      farm: {},
+      manamine: {},
+    },
+  };
+
+  const buildingKeys: BuildingKey[] = ["quarry", "sawmill", "farm", "manamine"];
+
+  for (const building of buildingKeys) {
+    for (let level = 1; level <= 20; level++) {
+      // Generieren wir die Konfig für Level 1-20
+      const baseCost = BASE_BUILDING_COST[building];
+      const cost: Partial<Record<ResourceKey, number>> = {};
+
+      (Object.keys(baseCost) as ResourceKey[]).forEach((resource) => {
+        const baseVal = baseCost[resource] ?? 0;
+        cost[resource] = Math.floor(
+          baseVal * Math.pow(COST_GROWTH_FACTOR, level - 1)
+        );
+      });
+
+      config.buildings[building][level] = {
+        level: level,
+        cost: cost,
+        constructionTime: Math.round(
+          BASE_BUILD_TIME_SECONDS *
+            Math.pow(BUILD_TIME_GROWTH_FACTOR, level - 1)
+        ),
+      };
+    }
+  }
+
+  return config;
+}
 
 export function getBuildingUpgradeCost(
   building: BuildingKey,
@@ -118,5 +161,79 @@ export function getResearchTimeSeconds(targetLevel: number): number {
   const factor = 1.3;
   return Math.round(base * Math.pow(factor, Math.max(0, targetLevel - 1)));
 }
+
+export interface BuildingLevelDetails {
+  level: number;
+  cost: Partial<Record<ResourceKey, number>>;
+  buildTime: number; // Bauzeit in Sekunden
+  description?: string;
+}
+
+export interface BuildingTypeConfig {
+  name: string;
+  icon: string;
+  levels: Record<number, BuildingLevelDetails>;
+}
+
+export type BuildingConfig = Record<BuildingKey, BuildingTypeConfig>;
+
+export const buildingConfig: BuildingConfig = {
+  sawmill: {
+    name: "Sägemühle",
+    icon: "/assets/icons/buildings/sawmill.png",
+    levels: {
+      1: {
+        level: 1,
+        cost: { wood: 50, stone: 20 },
+        buildTime: 25,
+        description: "Produziert Holz.",
+      },
+      2: { level: 2, cost: { wood: 120, stone: 60 }, buildTime: 60 },
+      3: { level: 3, cost: { wood: 250, stone: 150 }, buildTime: 150 },
+    },
+  },
+  manamine: {
+    name: "Manamine",
+    icon: "/assets/icons/buildings/manamine.png",
+    levels: {
+      1: {
+        level: 1,
+        cost: { mana: 50, stone: 30 },
+        buildTime: 30,
+        description: "Fördert Mana.",
+      },
+      2: { level: 2, cost: { mana: 130, stone: 80 }, buildTime: 75 },
+      3: { level: 3, cost: { mana: 280, stone: 180 }, buildTime: 180 },
+    },
+  },
+  farm: {
+    name: "Farm",
+    icon: "/assets/icons/buildings/farm.png",
+    levels: {
+      1: {
+        level: 1,
+        cost: { food: 40, wood: 25 },
+        buildTime: 20,
+        description: "Erzeugt Nahrung.",
+      },
+      2: { level: 2, cost: { food: 100, wood: 70 }, buildTime: 50 },
+      3: { level: 3, cost: { food: 220, wood: 160 }, buildTime: 130 },
+    },
+  },
+  quarry: {
+    name: "Steinbruch",
+    icon: "/assets/icons/buildings/quarry.png",
+    levels: {
+      1: {
+        level: 1,
+        cost: { stone: 50, wood: 20 },
+        buildTime: 25,
+        description: "Baut Stein ab.",
+      },
+      2: { level: 2, cost: { stone: 120, wood: 60 }, buildTime: 60 },
+      3: { level: 3, cost: { stone: 250, wood: 150 }, buildTime: 150 },
+    },
+  },
+};
 
 export const numberFmt = new Intl.NumberFormat("de-DE");

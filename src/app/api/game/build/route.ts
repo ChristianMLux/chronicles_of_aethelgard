@@ -1,96 +1,111 @@
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getAdminApp } from "@/lib/firebase-admin";
-import { getCurrentUserId } from "@/lib/user";
-import { NextResponse } from "next/server";
-import {
-  getBuildingUpgradeCost,
-  canAfford,
-  BuildingKey,
-  getBuildTimeSeconds,
-} from "@/lib/game";
-import { RawCityData, Resources } from "@/types";
+import { getCity, updateCity } from "@/lib/city";
+import { getGameConfig } from "@/lib/game";
+import { getCurrentUser } from "@/lib/user";
+import { BuildingKey, BuildingQueueItem, ResourceKey } from "@/types";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(req: Request) {
-  const adminDb = getFirestore(getAdminApp());
-
+export async function POST(request: NextRequest) {
   try {
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const { cityId, buildingId } = await request.json();
+    const user = await getCurrentUser();
+    const gameConfig = await getGameConfig();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { cityId, building } = (await req.json()) as {
-      cityId: string;
-      building: BuildingKey;
+    if (!cityId || !buildingId) {
+      return NextResponse.json(
+        { error: "Missing cityId or buildingId" },
+        { status: 400 }
+      );
+    }
+
+    const city = await getCity(cityId);
+
+    if (!city || (city.userId !== user.uid && city.ownerId !== user.uid)) {
+      return NextResponse.json(
+        { error: "City not found or access denied" },
+        { status: 404 }
+      );
+    }
+
+    const typedBuildingId = buildingId as BuildingKey;
+    const buildingLevel = city.buildings[typedBuildingId] || 0;
+    const nextLevel = buildingLevel + 1;
+    const buildingData = gameConfig.buildings[typedBuildingId]?.[nextLevel];
+
+    if (!buildingData) {
+      return NextResponse.json(
+        { error: "Building at max level or invalid" },
+        { status: 400 }
+      );
+    }
+
+    const isAlreadyInQueue = city.buildingQueue?.some(
+      (item) => item.buildingId === buildingId
+    );
+
+    if (isAlreadyInQueue) {
+      return NextResponse.json(
+        { error: "This building is already being upgraded." },
+        { status: 409 }
+      );
+    }
+
+    const hasEnoughResources = Object.entries(buildingData.cost).every(
+      ([resource, amount]) => {
+        const resourceAmount = amount as number;
+        return city.resources[resource as ResourceKey] >= resourceAmount;
+      }
+    );
+
+    if (!hasEnoughResources) {
+      return NextResponse.json(
+        { error: "Not enough resources" },
+        { status: 400 }
+      );
+    }
+
+    const resourceUpdates: { [key: string]: FieldValue } = {};
+    for (const [resource, amount] of Object.entries(buildingData.cost)) {
+      const resourceAmount = amount as number;
+      resourceUpdates[`resources.${resource}`] = FieldValue.increment(
+        -resourceAmount
+      );
+    }
+
+    // *** HIER IST DIE KORREKTUR ***
+    // Wir verwenden jetzt Firestore Timestamps, um Typsicherheit zu gewährleisten.
+    const constructionTimeSec = buildingData.constructionTime;
+    const startTime = Timestamp.now();
+    const endTime = Timestamp.fromMillis(
+      startTime.toMillis() + constructionTimeSec * 1000
+    );
+
+    const newQueueItem: BuildingQueueItem = {
+      id: `${buildingId}-${nextLevel}-${startTime.toMillis()}`,
+      buildingId: typedBuildingId,
+      targetLevel: nextLevel, // Konsistent 'targetLevel' verwenden
+      startTime: startTime,
+      endTime: endTime,
     };
 
-    if (!cityId || !building) {
-      return new NextResponse("Missing cityId or building", { status: 400 });
-    }
-
-    const cityRef = adminDb
-      .collection("users")
-      .doc(userId)
-      .collection("cities")
-      .doc(cityId);
-
-    await adminDb.runTransaction(async (transaction) => {
-      const cityDoc = await transaction.get(cityRef);
-      if (!cityDoc) {
-        throw new Error("City not found");
-      }
-
-      const city = cityDoc.data() as RawCityData;
-      const currentLevel = city.buildings?.[building] || 0;
-      const cost = getBuildingUpgradeCost(building, currentLevel);
-
-      if (!city.resources) {
-        throw new Error("City resources are missing or not loaded.");
-      }
-
-      const availableResources: Resources = {
-        stone: city.resources.stone || 0,
-        wood: city.resources.wood || 0,
-        food: city.resources.food || 0,
-        mana: city.resources.mana || 0,
-      };
-
-      if (!canAfford(availableResources, cost)) {
-        throw new Error("Not enough resources");
-      }
-
-      if (city.buildQueue && Object.keys(city.buildQueue).length > 0) {
-        throw new Error("Build queue is full");
-      }
-
-      const resourceUpdates: { [key: string]: FieldValue } = {};
-      for (const [resource, amount] of Object.entries(cost)) {
-        if (amount > 0) {
-          resourceUpdates[`resources.${resource}`] = FieldValue.increment(
-            -amount
-          );
-        }
-      }
-
-      const buildTime = getBuildTimeSeconds(building, currentLevel + 1);
-      const queueEntry = {
-        name: building,
-        duration: buildTime,
-        startedAt: FieldValue.serverTimestamp(),
-        targetLevel: currentLevel + 1,
-      };
-
-      transaction.update(cityRef, {
-        ...resourceUpdates,
-        [`buildQueue.${building}`]: queueEntry,
-      });
+    await updateCity(cityId, {
+      ...resourceUpdates,
+      buildingQueue: FieldValue.arrayUnion(newQueueItem),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
-    return NextResponse.json({ message: "Build started successfully" });
+    const updatedCity = await getCity(cityId);
+
+    return NextResponse.json(updatedCity);
   } catch (error) {
-    console.error("Build error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "An unknown error occurred";
-    return new NextResponse(errorMessage, { status: 500 });
+    console.error("Error starting build:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
