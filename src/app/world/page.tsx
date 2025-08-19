@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { getDb } from "../../../firebase";
 import {
   addDoc,
@@ -9,8 +10,10 @@ import {
   runTransaction,
   serverTimestamp,
   getDocs,
+  collectionGroup, // Für das Abrufen aller cities
 } from "firebase/firestore";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
 
 type City = {
   id: string;
@@ -20,32 +23,48 @@ type City = {
   region?: string;
 };
 
-export default function WorldPage(props: { searchParams?: { city?: string } }) {
+export default function WorldPage() {
   const db = useMemo(() => getDb(), []);
+  const searchParams = useSearchParams();
+  const cityId = searchParams.get("city");
+  const { user } = useAuth();
+
   const [city, setCity] = useState<City | null>(null);
   const [target, setTarget] = useState<string>("");
   const [allCities, setAllCities] = useState<City[]>([]);
 
   useEffect(() => {
-    const id = props?.searchParams?.city;
-    if (!id) return;
+    if (!cityId || !user?.uid) return;
+
     (async () => {
-      const snap = await getDoc(doc(db, "cities", id));
-      if (snap.exists()) setCity(snap.data() as City);
+      const cityDoc = doc(db, "users", user.uid, "cities", cityId);
+      const snap = await getDoc(cityDoc);
+      if (snap.exists()) {
+        setCity({ id: snap.id, ...snap.data() } as City);
+      }
     })();
-  }, [db, props?.searchParams?.city]);
+  }, [db, cityId, user?.uid]);
 
   useEffect(() => {
     (async () => {
-      const cs = await getDocs(collection(db, "cities"));
-      setAllCities(cs.docs.map((d) => d.data() as City));
+      // Option 1: Hole alle cities von allen users (mit collectionGroup)
+      const citiesQuery = collectionGroup(db, "cities");
+      const cs = await getDocs(citiesQuery);
+      setAllCities(cs.docs.map((d) => ({ id: d.id, ...d.data() } as City)));
+
+      // Option 2: Hole nur cities vom aktuellen user
+      // if (!session?.user?.id) return;
+      // const userCitiesRef = collection(db, "users", session.user.id, "cities");
+      // const cs = await getDocs(userCitiesRef);
+      // setAllCities(cs.docs.map((d) => ({ id: d.id, ...d.data() } as City)));
     })();
-  }, [db]);
+  }, [db, user?.uid]);
 
   async function sendMission() {
-    if (!city || !target) return;
+    if (!city || !target || !user?.uid) return;
+
     await runTransaction(db, async (trx) => {
-      const cRef = doc(db, "cities", city.id);
+      const cRef = doc(db, "users", user.uid, "cities", city.id);
       const csnap = await trx.get(cRef);
       if (!csnap.exists()) return;
       const c = csnap.data() as City;
@@ -53,8 +72,10 @@ export default function WorldPage(props: { searchParams?: { city?: string } }) {
       if (c.food < cost) return;
       trx.update(cRef, { food: c.food - cost, updatedAt: serverTimestamp() });
     });
+
     await addDoc(collection(db, "reports"), {
       type: "mission",
+      userId: user.uid,
       cityId: city.id,
       target,
       createdAt: serverTimestamp(),
