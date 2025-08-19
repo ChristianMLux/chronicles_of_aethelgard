@@ -7,7 +7,6 @@ import {
   collection,
   doc,
   serverTimestamp,
-  setDoc,
   writeBatch,
 } from "firebase/firestore";
 
@@ -59,10 +58,10 @@ export default function SignUpPage() {
         production: { stone: 50, wood: 50, food: 40, mana: 5 },
         defense: { Stadtmauer: 0 },
         resources: {
-          stone: 500,
-          wood: 500,
-          food: 500,
-          mana: 50,
+          stone: 5000,
+          wood: 5000,
+          food: 5000,
+          mana: 500,
         },
         capacity: {
           workforce: 100,
