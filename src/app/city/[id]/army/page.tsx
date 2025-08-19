@@ -3,7 +3,7 @@ import { getCurrentUserId } from "@/lib/user";
 import ArmyClient from "@/components/ArmyClient";
 import { getGameConfig } from "@/lib/game";
 
-export default async function ArmyPage({}: { params: { id: string } }) {
+export default async function ArmyPage() {
   const userId = await getCurrentUserId();
   if (!userId) {
     redirect("/auth/signin");

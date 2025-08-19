@@ -10,14 +10,16 @@ export default async function CityLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const userId = await getCurrentUserId();
   if (!userId) {
     redirect("/auth/signin");
   }
 
-  const cityData = await getCity(params.id);
+  const { id } = await params;
+
+  const cityData = await getCity(id);
   if (!cityData) {
     notFound();
   }
