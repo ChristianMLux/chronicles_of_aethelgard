@@ -51,12 +51,12 @@ export default function SignUpPage() {
         },
         buildingSlots: 25,
         buildings: {
-          Steinbruch: 1,
-          Holzfällerlager: 1,
-          Farmen: 1,
-          Manamine: 0,
+          quarry: 1,
+          sawmill: 1,
+          farm: 1,
+          manamine: 0,
         },
-        production: { Stein: 50, Holz: 50, Nahrung: 40, Mana: 5 },
+        production: { stone: 50, wood: 50, food: 40, mana: 5 },
         defense: { Stadtmauer: 0 },
         resources: {
           stone: 500,
