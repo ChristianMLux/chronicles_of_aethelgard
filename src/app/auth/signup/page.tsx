@@ -54,7 +54,7 @@ export default function SignUpPage() {
           quarry: 1,
           sawmill: 1,
           farm: 1,
-          manamine: 0,
+          manamine: 1,
         },
         production: { stone: 50, wood: 50, food: 40, mana: 5 },
         defense: { Stadtmauer: 0 },
