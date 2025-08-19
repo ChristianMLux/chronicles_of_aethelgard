@@ -1,5 +1,4 @@
 import { ResourceKey } from "@/types";
-import { Timestamp } from "firebase/firestore";
 
 /**
  * A simple number formatter for German localization.

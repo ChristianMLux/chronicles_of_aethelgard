@@ -3,7 +3,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getFirebaseAuth, getDb } from "../../../../firebase";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+} from "firebase/firestore";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -22,22 +28,27 @@ export default function SignUpPage() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (name) await updateProfile(cred.user, { displayName: name });
-      const playerRef = doc(collection(db, "players"), cred.user.uid);
-      await setDoc(playerRef, {
+      // create user
+
+      const batch = writeBatch(db);
+      const userRef = doc(collection(db, "users"), cred.user.uid);
+      const userCityRef = doc(collection(db, "users", cred.user.uid, "cities"));
+      batch.set(userRef, {
         userId: cred.user.uid,
-        name: name || cred.user.email?.split("@")[0] || "Spieler",
-        class: "Baumeister",
-        researches: {},
+        name: name || cred.user.email?.split("@")[0] || "User",
+        class: "Bauer",
         createdAt: serverTimestamp(),
       });
-      const cityRef = doc(collection(db, "cities"));
-      await setDoc(cityRef, {
-        id: cityRef.id,
+
+      batch.set(userCityRef, {
+        id: userCityRef.id,
         ownerId: cred.user.uid,
         name: `${name || "Stadt"}s Zuflucht`,
-        continent: "Eldoria",
-        region: "Grünwald",
-        territory: Math.floor(Math.random() * 15) + 1,
+        location: {
+          continent: "Eldoria",
+          region: "Grünwald",
+          territory: Math.floor(Math.random() * 15) + 1,
+        },
         buildingSlots: 25,
         buildings: {
           Steinbruch: 1,
@@ -47,18 +58,28 @@ export default function SignUpPage() {
         },
         production: { Stein: 50, Holz: 50, Nahrung: 40, Mana: 5 },
         defense: { Stadtmauer: 0 },
-        stone: 500,
-        wood: 500,
-        food: 500,
-        mana: 50,
-        workforce: 100,
-        capStone: 10000,
-        capWood: 10000,
-        capFood: 10000,
-        capMana: 5000,
+        resources: {
+          stone: 500,
+          wood: 500,
+          food: 500,
+          mana: 50,
+        },
+        capacity: {
+          workforce: 100,
+          capStone: 10000,
+          capWood: 10000,
+          capFood: 10000,
+          capMana: 5000,
+        },
+        army: {
+          archer: 0,
+          knight: 0,
+          swordsman: 0,
+        },
         lastTickAt: Date.now(),
         createdAt: serverTimestamp(),
       });
+      await batch.commit();
       router.push("/auth/signin");
     } catch (err: unknown) {
       const message =
