@@ -8,8 +8,22 @@ export interface Location {
   territoryName: string;
 }
 
-export type BuildingKey = "sawmill" | "manamine" | "farm" | "quarry";
+export interface UserProfile {
+  username: string;
+  email: string;
+  createdAt: Timestamp;
+}
+
+export type BuildingKey =
+  | "sawmill"
+  | "manamine"
+  | "farm"
+  | "quarry"
+  | "barracks";
+
 export type ResourceKey = "stone" | "wood" | "food" | "mana";
+
+export type UnitKey = "swordsman" | "archer" | "knight";
 
 export type level = number;
 
@@ -18,12 +32,21 @@ export interface Buildings {
   manamine: level;
   quarry: level;
   sawmill: level;
+  barracks?: level;
 }
 
 export interface BuildingQueueItem {
   id: string;
   buildingId: BuildingKey;
   targetLevel: number;
+  startTime: Timestamp;
+  endTime: Timestamp;
+}
+
+export interface TrainingQueueItem {
+  id: string;
+  unitId: UnitKey;
+  amount: number;
   startTime: Timestamp;
   endTime: Timestamp;
 }
@@ -47,6 +70,8 @@ export interface City {
   buildings: Buildings;
   buildingQueue: BuildingQueueItem[];
   buildingSlots?: number;
+  army: Record<UnitKey, number>;
+  trainingQueue: TrainingQueueItem[];
   defense?: number;
   workforce?: number;
   capacity?: number;
@@ -86,7 +111,18 @@ export interface RawCityData {
   capacity?: number;
   buildings?: Partial<Buildings>;
   buildingQueue?: BuildingQueueItem[];
+  army?: Record<UnitKey, number>;
+  trainingQueue?: TrainingQueueItem[];
   [key: string]: unknown;
+}
+
+export interface UnitConfig {
+  name: string;
+  description: string;
+  costs: Resources;
+  recruitTime: number; // in seconds
+  attack: number;
+  defense: number;
 }
 
 export interface BuildingLevelConfig {
@@ -99,6 +135,11 @@ export interface GameConfig {
   buildings: {
     [key in BuildingKey]: {
       [level: number]: BuildingLevelConfig;
+    };
+  };
+  units: {
+    [key in UnitKey]: {
+      [level: number]: UnitConfig;
     };
   };
 }

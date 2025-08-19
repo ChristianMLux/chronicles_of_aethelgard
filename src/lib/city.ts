@@ -1,6 +1,13 @@
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAdminApp } from "@/lib/firebase-admin";
-import { City, RawCityData, TimestampField, Buildings } from "@/types";
+import {
+  City,
+  RawCityData,
+  TimestampField,
+  Buildings,
+  BuildingQueueItem,
+  TrainingQueueItem,
+} from "@/types";
 import { getCurrentUser } from "./user";
 
 function getDb() {
@@ -9,8 +16,10 @@ function getDb() {
 
 /**
  * Fetches a single city document from Firestore for the currently authenticated user.
+ * This function ensures the returned data is fully serialized and safe to pass from
+ * Server Components to Client Components.
  * @param cityId The ID of the city to fetch.
- * @returns A promise that resolves to the City object or null if not found.
+ * @returns A promise that resolves to the serialized City object or null if not found.
  */
 export async function getCity(cityId: string): Promise<City | null> {
   const user = await getCurrentUser();
@@ -64,6 +73,12 @@ export async function updateCity(
   await cityRef.update(data);
 }
 
+/**
+ * Serializes raw Firestore city data into a format safe for Client Components.
+ * It converts all Timestamp objects to ISO date strings.
+ * @param cityData The raw city data from Firestore.
+ * @returns A fully serializable City object.
+ */
 function serverSerializeCityData(cityData: RawCityData): City {
   const defaultBuildings: Buildings = {
     farm: 0,
@@ -94,6 +109,22 @@ function serverSerializeCityData(cityData: RawCityData): City {
     return undefined;
   };
 
+  const serializeQueueItem = <T extends BuildingQueueItem | TrainingQueueItem>(
+    item: T
+  ): T => {
+    const startTime =
+      toTimestamp(item.startTime as unknown as TimestampField) ||
+      Timestamp.now();
+    const endTime =
+      toTimestamp(item.endTime as unknown as TimestampField) || Timestamp.now();
+
+    return {
+      ...item,
+      startTime: startTime.toDate().toISOString(),
+      endTime: endTime.toDate().toISOString(),
+    } as T;
+  };
+
   return {
     id: cityData.id,
     userId: cityData.ownerId,
@@ -107,17 +138,20 @@ function serverSerializeCityData(cityData: RawCityData): City {
       mana: cityData.resources?.mana || 0,
     },
     buildings: { ...defaultBuildings, ...cityData.buildings },
-    buildingQueue: Array.isArray(cityData.buildingQueue)
-      ? cityData.buildingQueue.map((item) => ({
-          ...item,
-          startTime: toTimestamp(item.startTime) || Timestamp.now(),
-          endTime: toTimestamp(item.endTime) || Timestamp.now(),
-        }))
-      : [],
+
+    buildingQueue: (cityData.buildingQueue || []).map(serializeQueueItem),
+    trainingQueue: (cityData.trainingQueue || []).map(serializeQueueItem),
+
     buildingSlots: cityData.buildingSlots,
+    army: {
+      swordsman: cityData.army?.swordsman || 0,
+      archer: cityData.army?.archer || 0,
+      knight: cityData.army?.knight || 0,
+    },
     defense: cityData.defense,
     workforce: cityData.workforce,
     capacity: cityData.capacity,
+
     createdAt: toTimestamp(cityData.createdAt)?.toDate().toISOString(),
     updatedAt: toTimestamp(cityData.updatedAt)?.toDate().toISOString(),
     lastTickAt: toTimestamp(cityData.lastTickAt)?.toDate().toISOString(),

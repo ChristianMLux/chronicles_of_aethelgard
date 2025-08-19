@@ -5,7 +5,7 @@ const tabImageSets = {
   set1: {
     normal: "/assets/ui/tabs/set_1_tab_1.png",
     hover: "/assets/ui/tabs/set_1_tab_2.png",
-    alternative: "/assets/ui/tabs/set_1_tab_3.png", // Falls du eine alternative Variante brauchst
+    alternative: "/assets/ui/tabs/set_1_tab_3.png",
   },
   set2: {
     normal: "/assets/ui/tabs/set_2_tab_1.png",
@@ -19,15 +19,15 @@ interface TabButtonProps {
   href: string;
   isActive: boolean;
   imageSet: keyof typeof tabImageSets;
-  variant?: "normal" | "alternative"; // Für unterschiedliche Button-Styles
+  variant?: "normal" | "alternative";
   className?: string;
 }
 
 /**
- * Ein wiederverwendbarer Tab-Button mit Hover- und Active-States.
- * - Normal: zeigt das Basis-Bild
- * - Hover: wechselt zum Hover-Bild
- * - Active: bleibt beim Hover-Bild (wie im Hover-Zustand)
+ * A reusable tab button with hover and active states.
+ * - Normal: displays the base image
+ * - Hover: switches to the hover image
+ * - Active: remains on the hover image (as in the hover state)
  */
 const TabButton: React.FC<TabButtonProps> = ({
   label,
@@ -42,12 +42,10 @@ const TabButton: React.FC<TabButtonProps> = ({
   const getBackgroundImage = () => {
     const selectedSet = tabImageSets[imageSet];
 
-    // Wenn aktiv oder gehovert, zeige das Hover-Bild
     if (isActive || isHovered) {
       return selectedSet.hover;
     }
 
-    // Ansonsten zeige das normale oder alternative Bild
     return variant === "alternative"
       ? selectedSet.alternative
       : selectedSet.normal;

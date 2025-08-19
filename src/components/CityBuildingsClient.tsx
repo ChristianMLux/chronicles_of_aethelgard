@@ -7,9 +7,8 @@ import { buildingConfig, BuildingTypeConfig } from "@/lib/game";
 import Modal from "./Modal";
 import { ResourceBar } from "./ResourceBar";
 import { Clock } from "lucide-react";
-import Image from "next/image"; // NEU: Image-Komponente importieren
+import Image from "next/image";
 
-// Hilfsfunktion zur Formatierung der verbleibenden Zeit
 function formatTime(seconds: number): string {
   if (seconds <= 0) return "00:00:00";
   const h = Math.floor(seconds / 3600)
@@ -61,7 +60,8 @@ export function CityBuildingsClient() {
     }
 
     const hasCompletedBuilds = city.buildingQueue.some(
-      (item) => getTimestampInMs(item.endTime) <= Date.now()
+      (item: { endTime: unknown }) =>
+        getTimestampInMs(item.endTime) <= Date.now()
     );
 
     if (hasCompletedBuilds) {
@@ -111,7 +111,9 @@ export function CityBuildingsClient() {
   const getBuildingQueueItem = (
     buildingId: BuildingKey
   ): BuildingQueueItem | undefined => {
-    return city.buildingQueue?.find((item) => item.buildingId === buildingId);
+    return city.buildingQueue?.find(
+      (item: { buildingId: string }) => item.buildingId === buildingId
+    );
   };
 
   return (

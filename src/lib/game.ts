@@ -1,14 +1,20 @@
-import { GameConfig } from "@/types";
+import { GameConfig, UnitConfig, UnitKey } from "@/types";
 
 export type ResourceKey = "stone" | "wood" | "food" | "mana";
 
-export type BuildingKey = "sawmill" | "manamine" | "farm" | "quarry";
+export type BuildingKey =
+  | "sawmill"
+  | "manamine"
+  | "farm"
+  | "quarry"
+  | "barracks";
 
 export const BUILDING_LIST: BuildingKey[] = [
   "quarry",
   "sawmill",
   "farm",
   "manamine",
+  "barracks",
 ];
 
 export const BUILDING_ICONS: Record<BuildingKey, string> = {
@@ -16,6 +22,7 @@ export const BUILDING_ICONS: Record<BuildingKey, string> = {
   sawmill: "/assets/icons/buildings/sawmill.png",
   farm: "/assets/icons/buildings/farm.png",
   manamine: "/assets/icons/buildings/manamine.png",
+  barracks: "/assets/icons/buildings/barracks.png",
 };
 
 const BASE_BUILDING_COST: Record<
@@ -26,6 +33,42 @@ const BASE_BUILDING_COST: Record<
   sawmill: { wood: 60, stone: 30 },
   farm: { food: 60, wood: 30 },
   manamine: { mana: 60, stone: 40 },
+  barracks: { stone: 80, wood: 80, food: 60 },
+};
+
+const unitBaseConfig: Record<
+  UnitKey,
+  Omit<UnitConfig, "name" | "description">
+> = {
+  swordsman: {
+    costs: { wood: 20, food: 30, stone: 0, mana: 0 },
+    recruitTime: 10,
+    attack: 5,
+    defense: 10,
+  },
+  archer: {
+    costs: { wood: 30, food: 20, stone: 0, mana: 0 },
+    recruitTime: 12,
+    attack: 10,
+    defense: 5,
+  },
+  knight: {
+    costs: { wood: 50, food: 80, stone: 100, mana: 0 },
+    recruitTime: 30,
+    attack: 20,
+    defense: 20,
+  },
+};
+const unitDetails: Record<UnitKey, { name: string; description: string }> = {
+  swordsman: {
+    name: "Schwertkämpfer",
+    description: "Eine solide Infanterieeinheit.",
+  },
+  archer: { name: "Bogenschütze", description: "Greift aus der Ferne an." },
+  knight: {
+    name: "Ritter",
+    description: "Eine starke und teure Kavallerieeinheit.",
+  },
 };
 
 const COST_GROWTH_FACTOR = 1.5;
@@ -39,14 +82,25 @@ export async function getGameConfig(): Promise<GameConfig> {
       sawmill: {},
       farm: {},
       manamine: {},
+      barracks: {},
+    },
+    units: {
+      swordsman: {},
+      archer: {},
+      knight: {},
     },
   };
 
-  const buildingKeys: BuildingKey[] = ["quarry", "sawmill", "farm", "manamine"];
+  const buildingKeys: BuildingKey[] = [
+    "quarry",
+    "sawmill",
+    "farm",
+    "manamine",
+    "barracks",
+  ];
 
   for (const building of buildingKeys) {
     for (let level = 1; level <= 20; level++) {
-      // Generieren wir die Konfig für Level 1-20
       const baseCost = BASE_BUILDING_COST[building];
       const cost: Partial<Record<ResourceKey, number>> = {};
 
@@ -66,6 +120,14 @@ export async function getGameConfig(): Promise<GameConfig> {
         ),
       };
     }
+  }
+
+  const unitKeys: UnitKey[] = ["swordsman", "archer", "knight"];
+  for (const unit of unitKeys) {
+    config.units[unit][1] = {
+      ...unitBaseConfig[unit],
+      ...unitDetails[unit],
+    };
   }
 
   return config;
@@ -165,7 +227,7 @@ export function getResearchTimeSeconds(targetLevel: number): number {
 export interface BuildingLevelDetails {
   level: number;
   cost: Partial<Record<ResourceKey, number>>;
-  buildTime: number; // Bauzeit in Sekunden
+  buildTime: number; // in seconds
   description?: string;
 }
 
@@ -234,6 +296,17 @@ export const buildingConfig: BuildingConfig = {
       3: { level: 3, cost: { stone: 250, wood: 150 }, buildTime: 150 },
     },
   },
+  barracks: {
+    name: "Kaserne",
+    icon: "/assets/icons/buildings/barracks.png",
+    levels: {
+      1: {
+        level: 1,
+        cost: { wood: 100, stone: 80 },
+        buildTime: 60,
+        description: "Ermöglicht die Rekrutierung von Einheiten.",
+      },
+      2: { level: 2, cost: { wood: 220, stone: 180 }, buildTime: 150 },
+    },
+  },
 };
-
-export const numberFmt = new Intl.NumberFormat("de-DE");

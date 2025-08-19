@@ -76,6 +76,20 @@ export function CityDataProvider({
             });
           }
 
+          if (cityData.trainingQueue) {
+            cityData.trainingQueueItem = cityData.trainingQueue.map((item) => {
+              const startTime =
+                item.startTime instanceof Timestamp
+                  ? item.startTime.toDate()
+                  : new Date();
+              const endTime =
+                item.endTime instanceof Timestamp
+                  ? item.endTime.toDate()
+                  : new Date();
+              return { ...item, startTime, endTime };
+            });
+          }
+
           setCity(cityData);
         } else {
           console.error("City document does not exist!");

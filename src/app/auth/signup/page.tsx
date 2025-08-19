@@ -22,7 +22,6 @@ export default function SignUpPage() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (name) await updateProfile(cred.user, { displayName: name });
-      // Create Player and starter City in Firestore
       const playerRef = doc(collection(db, "players"), cred.user.uid);
       await setDoc(playerRef, {
         userId: cred.user.uid,
@@ -40,7 +39,12 @@ export default function SignUpPage() {
         region: "Grünwald",
         territory: Math.floor(Math.random() * 15) + 1,
         buildingSlots: 25,
-        buildings: { Steinbruch: 1, Holzfällerlager: 1, Farmen: 1, Manamine: 0 },
+        buildings: {
+          Steinbruch: 1,
+          Holzfällerlager: 1,
+          Farmen: 1,
+          Manamine: 0,
+        },
         production: { Stein: 50, Holz: 50, Nahrung: 40, Mana: 5 },
         defense: { Stadtmauer: 0 },
         stone: 500,
@@ -57,7 +61,8 @@ export default function SignUpPage() {
       });
       router.push("/auth/signin");
     } catch (err: unknown) {
-      const message = (err as { message?: string })?.message ?? "Unbekannter Fehler";
+      const message =
+        (err as { message?: string })?.message ?? "Unbekannter Fehler";
       setError(message);
     } finally {
       setLoading(false);
@@ -94,10 +99,13 @@ export default function SignUpPage() {
           className="border rounded px-3 py-2"
           required
         />
-        <button className="bg-black text-white rounded px-4 py-2" disabled={loading}>Konto erstellen</button>
+        <button
+          className="bg-black text-white rounded px-4 py-2"
+          disabled={loading}
+        >
+          Konto erstellen
+        </button>
       </form>
     </div>
   );
 }
-
-

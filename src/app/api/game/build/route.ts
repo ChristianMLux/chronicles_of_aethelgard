@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     const isAlreadyInQueue = city.buildingQueue?.some(
-      (item) => item.buildingId === buildingId
+      (item: { buildingId: string }) => item.buildingId === buildingId
     );
 
     if (isAlreadyInQueue) {
@@ -76,8 +76,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // *** HIER IST DIE KORREKTUR ***
-    // Wir verwenden jetzt Firestore Timestamps, um Typsicherheit zu gewährleisten.
     const constructionTimeSec = buildingData.constructionTime;
     const startTime = Timestamp.now();
     const endTime = Timestamp.fromMillis(
@@ -87,7 +85,7 @@ export async function POST(request: NextRequest) {
     const newQueueItem: BuildingQueueItem = {
       id: `${buildingId}-${nextLevel}-${startTime.toMillis()}`,
       buildingId: typedBuildingId,
-      targetLevel: nextLevel, // Konsistent 'targetLevel' verwenden
+      targetLevel: nextLevel,
       startTime: startTime,
       endTime: endTime,
     };

@@ -8,10 +8,10 @@ import {
   ResearchKey,
   getResearchUpgradeCost,
   getResearchTimeSeconds,
-  numberFmt,
 } from "@/lib/game";
 import Modal from "@/components/Modal";
 import Image from "next/image";
+import { numberFmt } from "@/lib/utils";
 
 interface City {
   id: string;

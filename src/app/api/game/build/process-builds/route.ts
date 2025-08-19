@@ -54,8 +54,7 @@ export async function POST(req: NextRequest) {
 
     city.buildingQueue.forEach((item) => {
       let endTime: Timestamp;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawEndTime = item.endTime as any;
+      const rawEndTime = item.endTime as Timestamp;
 
       if (rawEndTime && typeof rawEndTime.toDate === "function") {
         endTime = rawEndTime;
@@ -85,8 +84,8 @@ export async function POST(req: NextRequest) {
 
     const updatedBuildings = { ...city.buildings };
     completedBuilds.forEach((build) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const targetLevel = (build as any).level || build.targetLevel;
+      const targetLevel =
+        (build as BuildingQueueItem).targetLevel || build.targetLevel;
 
       if (
         build.buildingId &&

@@ -1,10 +1,24 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { getDb } from "../../../firebase";
-import { addDoc, collection, doc, getDoc, runTransaction, serverTimestamp, getDocs } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  runTransaction,
+  serverTimestamp,
+  getDocs,
+} from "firebase/firestore";
 import Link from "next/link";
 
-type City = { id: string; name: string; food: number; continent?: string; region?: string };
+type City = {
+  id: string;
+  name: string;
+  food: number;
+  continent?: string;
+  region?: string;
+};
 
 export default function WorldPage(props: { searchParams?: { city?: string } }) {
   const db = useMemo(() => getDb(), []);
@@ -35,7 +49,6 @@ export default function WorldPage(props: { searchParams?: { city?: string } }) {
       const csnap = await trx.get(cRef);
       if (!csnap.exists()) return;
       const c = csnap.data() as City;
-      // Simple food cost for mission
       const cost = 20;
       if (c.food < cost) return;
       trx.update(cRef, { food: c.food - cost, updatedAt: serverTimestamp() });
@@ -52,21 +65,38 @@ export default function WorldPage(props: { searchParams?: { city?: string } }) {
 
   return (
     <div className="p-6 flex flex-col gap-4">
-      <Link className="underline" href="/dashboard">← Zurück</Link>
+      <Link className="underline" href="/dashboard">
+        ← Zurück
+      </Link>
       <h1 className="text-2xl font-semibold">Welt</h1>
-      <p className="text-sm text-gray-600">Wähle ein Ziel aus bekannten Städten (Stub). Später wird dies eine Karte.</p>
+      <p className="text-sm text-gray-600">
+        Wähle ein Ziel aus bekannten Städten (Stub). Später wird dies eine
+        Karte.
+      </p>
       <div className="flex items-center gap-2">
         <label>Ziel:</label>
-        <select className="border rounded px-2 py-1" value={target} onChange={(e) => setTarget(e.target.value)}>
+        <select
+          className="border rounded px-2 py-1"
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+        >
           <option value="">— Ziel wählen —</option>
-          {allCities.filter((c) => !city || c.id !== city.id).map((c) => (
-            <option key={c.id} value={`${c.continent}/${c.region}/${c.id}`}>{c.name} ({c.continent}/{c.region})</option>
-          ))}
+          {allCities
+            .filter((c) => !city || c.id !== city.id)
+            .map((c) => (
+              <option key={c.id} value={`${c.continent}/${c.region}/${c.id}`}>
+                {c.name} ({c.continent}/{c.region})
+              </option>
+            ))}
         </select>
-        <button className="border rounded px-3 py-1" onClick={sendMission} disabled={!city || !target}>Senden</button>
+        <button
+          className="border rounded px-3 py-1"
+          onClick={sendMission}
+          disabled={!city || !target}
+        >
+          Senden
+        </button>
       </div>
     </div>
   );
 }
-
-

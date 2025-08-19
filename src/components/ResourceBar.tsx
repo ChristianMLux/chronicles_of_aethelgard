@@ -1,7 +1,7 @@
 "use client";
 
 import { useCity } from "./CityDataProvider";
-import { numberFmt } from "@/lib/game";
+import { numberFmt } from "@/lib/utils";
 import { ResourceKey, Resources } from "@/types";
 import Image from "next/image";
 
