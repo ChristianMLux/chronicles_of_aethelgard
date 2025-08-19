@@ -38,7 +38,8 @@ export function canAfford(
  * @param timeValue The time value to convert.
  * @returns The timestamp in milliseconds.
  */
-export function getTimestampInMs(timeValue: Timestamp): number {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getTimestampInMs(timeValue: any): number {
   if (!timeValue) return Date.now();
   if (typeof timeValue.toDate === "function") {
     return timeValue.toDate().getTime();

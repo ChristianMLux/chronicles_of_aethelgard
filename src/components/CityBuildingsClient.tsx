@@ -3,39 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useCity } from "./CityDataProvider";
 import { BuildingKey, City, BuildingQueueItem } from "@/types";
-import { buildingConfig, BuildingTypeConfig } from "@/lib/game";
+import { BUILDING_CONFIG } from "@/config/buildings.config";
+import { BuildingTypeConfig } from "@/types";
 import Modal from "./Modal";
 import { ResourceBar } from "./ResourceBar";
 import { Clock } from "lucide-react";
 import Image from "next/image";
-
-function formatTime(seconds: number): string {
-  if (seconds <= 0) return "00:00:00";
-  const h = Math.floor(seconds / 3600)
-    .toString()
-    .padStart(2, "0");
-  const m = Math.floor((seconds % 3600) / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${h}:${m}:${s}`;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getTimestampInMs(timeValue: any): number {
-  if (timeValue && typeof timeValue.toDate === "function")
-    return timeValue.toDate().getTime();
-  if (timeValue && typeof timeValue.seconds === "number")
-    return timeValue.seconds * 1000;
-  if (timeValue instanceof Date) return timeValue.getTime();
-  if (typeof timeValue === "string") {
-    const date = new Date(timeValue);
-    if (!isNaN(date.getTime())) return date.getTime();
-  }
-  return Date.now();
-}
+import { formatTime, getTimestampInMs } from "@/lib/utils";
 
 export function CityBuildingsClient() {
   const { city, loading } = useCity();
@@ -120,7 +94,7 @@ export function CityBuildingsClient() {
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Gebäude</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Object.entries(buildingConfig).map(([key, config]) => {
+        {Object.entries(BUILDING_CONFIG).map(([key, config]) => {
           const buildingKey = key as BuildingKey;
           const currentLevel = city.buildings[buildingKey] || 0;
           const queueItem = getBuildingQueueItem(buildingKey);
@@ -184,7 +158,7 @@ export function CityBuildingsClient() {
         <Modal open={!!selected} onClose={() => setSelected(null)}>
           <UpgradeModalContent
             buildingKey={selected}
-            config={buildingConfig[selected]}
+            config={BUILDING_CONFIG[selected]}
             city={city}
             onConfirm={upgrade}
             onClose={() => setSelected(null)}

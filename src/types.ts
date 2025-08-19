@@ -143,3 +143,26 @@ export interface GameConfig {
     };
   };
 }
+
+export interface BuildingLevelDetails {
+  level: number;
+  cost: Partial<Record<ResourceKey, number>>;
+  buildTime: number; // in seconds
+  description?: string;
+}
+
+export interface BuildingTypeConfig {
+  name: string;
+  icon: string;
+  levels: Record<number, BuildingLevelDetails>;
+}
+
+export type BuildingConfig = Record<BuildingKey, BuildingTypeConfig>;
+
+export type ResearchKey =
+  | "Blacksmithing"
+  | "Armorsmithing"
+  | "Enchanting"
+  | "Logistics"
+  | "Espionage"
+  | "Administration";
