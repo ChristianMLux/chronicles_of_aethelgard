@@ -27,7 +27,6 @@ export default function SignUpPage() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (name) await updateProfile(cred.user, { displayName: name });
-      // create user
 
       const batch = writeBatch(db);
       const userRef = doc(collection(db, "users"), cred.user.uid);

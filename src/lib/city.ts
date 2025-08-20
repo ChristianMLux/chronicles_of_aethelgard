@@ -7,6 +7,7 @@ import {
   Buildings,
   BuildingQueueItem,
   TrainingQueueItem,
+  ResearchQueueItem,
 } from "@/types";
 import { getCurrentUser } from "./user";
 
@@ -109,7 +110,9 @@ function serverSerializeCityData(cityData: RawCityData): City {
     return undefined;
   };
 
-  const serializeQueueItem = <T extends BuildingQueueItem | TrainingQueueItem>(
+  const serializeQueueItem = <
+    T extends BuildingQueueItem | TrainingQueueItem | ResearchQueueItem
+  >(
     item: T
   ): T => {
     const startTime =
@@ -141,12 +144,21 @@ function serverSerializeCityData(cityData: RawCityData): City {
 
     buildingQueue: (cityData.buildingQueue || []).map(serializeQueueItem),
     trainingQueue: (cityData.trainingQueue || []).map(serializeQueueItem),
+    researchQueue: (cityData.researchQueue || []).map(serializeQueueItem),
 
     buildingSlots: cityData.buildingSlots,
     army: {
       swordsman: cityData.army?.swordsman || 0,
       archer: cityData.army?.archer || 0,
       knight: cityData.army?.knight || 0,
+    },
+    research: {
+      blacksmithing: cityData.research?.blacksmithing || 1,
+      armorsmithing: cityData.research?.armorsmithing || 1,
+      enchanting: cityData.research?.enchanting || 1,
+      administration: cityData.research?.administration || 1,
+      logistics: cityData.research?.logistics || 1,
+      espionage: cityData.research?.espionage || 1,
     },
     defense: cityData.defense,
     workforce: cityData.workforce,
