@@ -1,11 +1,12 @@
 import { BASE_BUILDING_COST, BUILDING_LIST } from "@/config/buildings.config";
 import { GAME_CONSTANTS } from "@/config/game.constants";
+import { RESEARCH_CONFIG } from "@/config/research.config";
 import {
   UNIT_CONFIG,
   UNIT_DETAILS_CONFIG,
   UNIT_LIST,
 } from "@/config/units.config";
-import { GameConfig, ResourceKey } from "@/types";
+import { GameConfig, ResearchKey, ResourceKey } from "@/types";
 
 export async function getGameConfig(): Promise<GameConfig> {
   const config: GameConfig = {
@@ -20,6 +21,14 @@ export async function getGameConfig(): Promise<GameConfig> {
       swordsman: {},
       archer: {},
       knight: {},
+    },
+    research: {
+      blacksmithing: {},
+      armorsmithing: {},
+      enchanting: {},
+      logistics: {},
+      espionage: {},
+      administration: {},
     },
   };
 
@@ -51,6 +60,26 @@ export async function getGameConfig(): Promise<GameConfig> {
       ...UNIT_CONFIG[unit],
       ...UNIT_DETAILS_CONFIG[unit],
     };
+  }
+
+  const researchKeys = Object.keys(RESEARCH_CONFIG) as ResearchKey[];
+
+  for (const researchKey of researchKeys) {
+    const researchData = RESEARCH_CONFIG[researchKey];
+
+    for (const levelStr in researchData.levels) {
+      const level = parseInt(levelStr, 10);
+      const levelDetails = researchData.levels[level];
+
+      if (levelDetails) {
+        config.research[researchKey][level] = {
+          name: researchData.name,
+          description: researchData.description,
+          costs: levelDetails.cost,
+          researchTime: levelDetails.researchTime,
+        };
+      }
+    }
   }
 
   return config;

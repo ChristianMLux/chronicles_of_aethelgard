@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useCity } from "./CityDataProvider";
-import { BuildingKey, City, BuildingQueueItem } from "@/types";
+import { BuildingKey, BuildingQueueItem } from "@/types";
 import { BUILDING_CONFIG } from "@/config/buildings.config";
-import { BuildingTypeConfig } from "@/types";
 import Modal from "./Modal";
-import { ResourceBar } from "./ResourceBar";
 import { Clock } from "lucide-react";
 import Image from "next/image";
 import { formatTime, getTimestampInMs } from "@/lib/utils";
+import UpgradeModalContent from "./ui/UpgradeModalContent";
 
 export function CityBuildingsClient() {
   const { city, loading } = useCity();
@@ -167,77 +166,6 @@ export function CityBuildingsClient() {
           />
         </Modal>
       )}
-    </div>
-  );
-}
-
-function UpgradeModalContent({
-  buildingKey,
-  config,
-  city,
-  onConfirm,
-  onClose,
-  isBusy,
-  error,
-}: {
-  buildingKey: BuildingKey;
-  config: BuildingTypeConfig;
-  city: City;
-  onConfirm: (building: BuildingKey) => void;
-  onClose: () => void;
-  isBusy: boolean;
-  error: string | null;
-}) {
-  const currentLevel = city.buildings[buildingKey] || 0;
-  const nextLevel = currentLevel + 1;
-  const upgradeDetails = config.levels[nextLevel];
-
-  if (!upgradeDetails) {
-    return (
-      <div>
-        <h3 className="text-xl font-bold mb-2">{config.name}</h3>
-        <p>Maximale Stufe bereits erreicht.</p>
-        <button onClick={onClose} className="ui-button-secondary w-full mt-4">
-          Schließen
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h3 className="text-xl font-bold mb-2">
-        {config.name}: Level {nextLevel}
-      </h3>
-      <p className="text-sm text-gray-400 mb-4">
-        {upgradeDetails.description ||
-          "Verbessert die Effizienz dieses Gebäudes."}
-      </p>
-      <div className="space-y-2 mb-4">
-        <h4 className="font-semibold">Baukosten</h4>
-        <ResourceBar
-          resources={upgradeDetails.cost}
-          cityResources={city.resources}
-          mode="cost"
-        />
-        <div className="flex items-center text-sm">
-          <Clock size={14} className="mr-2" />
-          <span>Bauzeit: {formatTime(upgradeDetails.buildTime)}</span>
-        </div>
-      </div>
-      {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
-      <div className="flex gap-2 mt-6">
-        <button onClick={onClose} className="ui-button-secondary w-full">
-          Abbrechen
-        </button>
-        <button
-          onClick={() => onConfirm(buildingKey)}
-          className="ui-button w-full"
-          disabled={isBusy}
-        >
-          {isBusy ? "Wird gebaut..." : "Ausbau bestätigen"}
-        </button>
-      </div>
     </div>
   );
 }

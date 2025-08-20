@@ -125,7 +125,7 @@ export default function ArmyClient({ initialGameConfig }: ArmyClientProps) {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Armee</h1>
+      <h2 className="text-2xl font-bold mb-4">Armee</h2>
 
       {error && (
         <div className="text-red-500 bg-red-100 p-2 rounded mb-4">{error}</div>

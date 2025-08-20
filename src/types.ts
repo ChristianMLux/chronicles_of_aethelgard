@@ -25,6 +25,14 @@ export type ResourceKey = "stone" | "wood" | "food" | "mana";
 
 export type UnitKey = "swordsman" | "archer" | "knight";
 
+export type ResearchKey =
+  | "blacksmithing"
+  | "armorsmithing"
+  | "enchanting"
+  | "logistics"
+  | "espionage"
+  | "administration";
+
 export type level = number;
 
 export interface Buildings {
@@ -33,6 +41,15 @@ export interface Buildings {
   quarry: level;
   sawmill: level;
   barracks?: level;
+}
+
+export interface Research {
+  blacksmithing: level;
+  armorsmithing: level;
+  enchanting: level;
+  logistics: level;
+  espionage: level;
+  administration: level;
 }
 
 export interface BuildingQueueItem {
@@ -47,6 +64,14 @@ export interface TrainingQueueItem {
   id: string;
   unitId: UnitKey;
   amount: number;
+  startTime: Timestamp;
+  endTime: Timestamp;
+}
+
+export interface ResearchQueueItem {
+  id: string;
+  researchId: ResearchKey;
+  targetLevel: number;
   startTime: Timestamp;
   endTime: Timestamp;
 }
@@ -66,7 +91,8 @@ export interface City {
   name: string;
   location: Location;
   resources: Resources;
-
+  research: Research;
+  researchQueue: ResearchQueueItem[];
   buildings: Buildings;
   buildingQueue: BuildingQueueItem[];
   buildingSlots?: number;
@@ -113,6 +139,8 @@ export interface RawCityData {
   buildingQueue?: BuildingQueueItem[];
   army?: Record<UnitKey, number>;
   trainingQueue?: TrainingQueueItem[];
+  research?: Research;
+  researchQueue?: ResearchQueueItem[];
   [key: string]: unknown;
 }
 
@@ -125,10 +153,12 @@ export interface UnitConfig {
   defense: number;
 }
 
-export interface BuildingLevelConfig {
-  level: number;
-  cost: Partial<Record<ResourceKey, number>>;
-  constructionTime: number; // in seconds
+export interface ResearchConfig {
+  name: string;
+  description: string;
+  costs: Resources;
+  researchTime: number;
+  //TODO: Add effects here
 }
 
 export interface GameConfig {
@@ -142,6 +172,17 @@ export interface GameConfig {
       [level: number]: UnitConfig;
     };
   };
+  research: {
+    [key in ResearchKey]: {
+      [level: number]: ResearchConfig;
+    };
+  };
+}
+
+export interface BuildingLevelConfig {
+  level: number;
+  cost: Partial<Record<ResourceKey, number>>;
+  constructionTime: number; // in seconds
 }
 
 export interface BuildingLevelDetails {
@@ -158,11 +199,3 @@ export interface BuildingTypeConfig {
 }
 
 export type BuildingConfig = Record<BuildingKey, BuildingTypeConfig>;
-
-export type ResearchKey =
-  | "Blacksmithing"
-  | "Armorsmithing"
-  | "Enchanting"
-  | "Logistics"
-  | "Espionage"
-  | "Administration";
