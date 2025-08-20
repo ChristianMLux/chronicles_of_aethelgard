@@ -75,6 +75,15 @@ export default function SignUpPage() {
           knight: 0,
           swordsman: 0,
         },
+        research: {
+          blacksmithing: 1,
+          armorsmithing: 1,
+          administration: 1,
+          enchanting: 1,
+          espionage: 1,
+          logistics: 1,
+        },
+        researchQueue: [],
         lastTickAt: Date.now(),
         createdAt: serverTimestamp(),
       });
