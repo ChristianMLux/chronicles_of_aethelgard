@@ -28,7 +28,11 @@ export default async function CityLayout({
     <div className="min-h-screen bg-gray-900 text-white pl-4 pr-4 pt-10">
       <CityDataProvider initialCity={cityData}>
         <div className="max-w-7xl mx-auto ">
-          <CityHeader city={cityData} />
+          <CityHeader
+            city={cityData}
+            contentAlignment="left"
+            resourcePosition="inline"
+          />
           <CityNavigation />
           <div>{children}</div>
         </div>
