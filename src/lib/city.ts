@@ -51,6 +51,36 @@ export async function getCity(cityId: string): Promise<City | null> {
 }
 
 /**
+ * Fetches all city documents for a given user.
+ * @param userId The ID of the user whose cities to fetch.
+ * @returns A promise that resolves to an array of serialized City objects.
+ */
+export async function getCities(userId: string): Promise<City[]> {
+  const adminDb = getDb();
+  const citiesRef = adminDb
+    .collection("users")
+    .doc(userId)
+    .collection("cities");
+
+  const snapshot = await citiesRef.get();
+
+  if (snapshot.empty) {
+    return [];
+  }
+
+  const cities = snapshot.docs.map((doc) => {
+    const rawData = {
+      id: doc.id,
+      ownerId: userId,
+      ...doc.data(),
+    } as unknown as RawCityData;
+    return serverSerializeCityData(rawData);
+  });
+
+  return cities;
+}
+
+/**
  * Updates a city document in Firestore.
  * @param cityId The ID of the city to update.
  * @param data An object containing the fields to update.
@@ -163,6 +193,7 @@ function serverSerializeCityData(cityData: RawCityData): City {
     defense: cityData.defense,
     workforce: cityData.workforce,
     capacity: cityData.capacity,
+    tileId: cityData.tileId,
 
     createdAt: toTimestamp(cityData.createdAt)?.toDate().toISOString(),
     updatedAt: toTimestamp(cityData.updatedAt)?.toDate().toISOString(),

@@ -199,3 +199,32 @@ export interface BuildingTypeConfig {
 }
 
 export type BuildingConfig = Record<BuildingKey, BuildingTypeConfig>;
+
+export type TerrainType =
+  | "plains"
+  | "forest"
+  | "mountains"
+  | "water"
+  | "desert";
+export type TileType = "empty" | "city" | "resource" | "npc_camp" | "ruins";
+export type ZoneType = "outer" | "middle" | "center";
+export type ResourceType = "food" | "wood" | "stone" | "mana";
+
+export interface Tile {
+  id: string;
+  coords: { x: number; y: number };
+  type: TileType;
+  terrain: TerrainType;
+  zone: ZoneType;
+  ownerId?: string;
+  cityId?: string;
+  npcCampId?: string;
+  resourceType?: ResourceType;
+  resourceAmount?: number;
+  npcLevel?: number;
+  npcTroops?: {
+    swordsman: number;
+    archer: number;
+    knight: number;
+  };
+}
