@@ -1,9 +1,10 @@
 "use client";
 
-import { Tile } from "@/types";
+import { Tile, City, WorldMissionAction } from "@/types";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import MissionModal from "./MissionModal";
 
 interface TileDetailModalProps {
   tile: Tile | null;
@@ -11,6 +12,7 @@ interface TileDetailModalProps {
   isSettleMode: boolean;
   onSettle: (tileId: string, cityId: string) => void;
   ownerProfile: { username: string } | null;
+  originCity: City | null;
 }
 
 const ModalPortal = ({ children }: { children: React.ReactNode }) => {
@@ -30,8 +32,27 @@ export default function TileDetailModal({
   isSettleMode,
   onSettle,
   ownerProfile,
+  originCity,
 }: TileDetailModalProps) {
+  const [showMissionModal, setShowMissionModal] = useState(false);
+  const [missionAction, setMissionAction] =
+    useState<WorldMissionAction>("ATTACK");
+
   if (!tile) return null;
+
+  const handleOpenMission = (action: WorldMissionAction) => {
+    if (!originCity) {
+      alert("You need a city to send missions from!");
+      return;
+    }
+    setMissionAction(action);
+    setShowMissionModal(true);
+  };
+
+  const handleMissionStart = () => {
+    //TODO: Add live update for troop-movement at some point
+    console.log("Mission started!");
+  };
 
   const getModalContent = () => {
     switch (tile.type) {
@@ -70,10 +91,16 @@ export default function TileDetailModal({
               </p>
             </div>
             <div className="mt-6 flex justify-center gap-4">
-              <button className="px-4 py-2 bg-yellow-500 text-black rounded hover:bg-yellow-600 font-semibold">
+              <button
+                onClick={() => handleOpenMission("SPY")}
+                className="px-4 py-2 bg-yellow-500 text-black rounded hover:bg-yellow-600 font-semibold"
+              >
                 Scout
               </button>
-              <button className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold">
+              <button
+                onClick={() => handleOpenMission("ATTACK")}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold"
+              >
                 Attack
               </button>
             </div>
@@ -101,7 +128,10 @@ export default function TileDetailModal({
               </p>
             </div>
             <div className="mt-6 flex justify-center gap-4">
-              <button className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold">
+              <button
+                onClick={() => handleOpenMission("GATHER")}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold"
+              >
                 Gather
               </button>
             </div>
@@ -119,12 +149,34 @@ export default function TileDetailModal({
             />
             <div className="mt-4 text-center text-gray-300">
               <p>A mighty city stands here.</p>
-              {/* TODO: Add more city details like owner, level, etc. */}
+              <p className="mt-2">
+                Owner:{" "}
+                <span className="font-bold text-white">
+                  {ownerProfile?.username || "Unknown"}
+                </span>
+              </p>
             </div>
             <div className="mt-6 flex justify-center gap-4">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold">
-                Visit City
-              </button>
+              {originCity && tile.ownerId !== originCity.ownerId ? (
+                <>
+                  <button
+                    onClick={() => handleOpenMission("SPY")}
+                    className="px-4 py-2 bg-yellow-500 text-black rounded hover:bg-yellow-600 font-semibold"
+                  >
+                    Spy
+                  </button>
+                  <button
+                    onClick={() => handleOpenMission("ATTACK")}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold"
+                  >
+                    Attack
+                  </button>
+                </>
+              ) : (
+                <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold">
+                  Visit City
+                </button>
+              )}
             </div>
           </div>
         );
@@ -145,6 +197,13 @@ export default function TileDetailModal({
                   onClick={() => onSettle(tile.id, "ID_DER_ERSTEN_STADT")}
                 >
                   Settle Capital Here
+                </button>
+              ) : originCity ? (
+                <button
+                  onClick={() => handleOpenMission("GATHER")}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold"
+                >
+                  Send Troops
                 </button>
               ) : (
                 <p className="text-sm text-gray-400">
@@ -175,45 +234,61 @@ export default function TileDetailModal({
   };
 
   return (
-    <ModalPortal>
-      <style jsx global>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: scale(0.95);
+    <>
+      <ModalPortal>
+        <style jsx global>{`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: scale(0.95);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
           }
-          to {
-            opacity: 1;
-            transform: scale(1);
+          .animate-fade-in {
+            animation: fadeIn 0.2s ease-out forwards;
           }
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.2s ease-out forwards;
-        }
-      `}</style>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      >
+        `}</style>
         <div
-          className="rounded-lg shadow-lg w-full max-w-md border bg-gray-800 border-gray-600 animate-fade-in"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
         >
-          <div className="flex items-center justify-between border-b border-gray-600 px-4 py-3">
-            <h3 className="font-semibold text-lg text-white">
-              {getModalTitle()}
-            </h3>
-            <button
-              aria-label="Close"
-              className="text-gray-400 hover:text-white text-2xl leading-none px-2 py-1 rounded"
-              onClick={onClose}
-            >
-              ×
-            </button>
+          <div
+            className="rounded-lg shadow-lg w-full max-w-md border bg-gray-800 border-gray-600 animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-600 px-4 py-3">
+              <h3 className="font-semibold text-lg text-white">
+                {getModalTitle()}
+              </h3>
+              <button
+                aria-label="Close"
+                className="text-gray-400 hover:text-white text-2xl leading-none px-2 py-1 rounded"
+                onClick={onClose}
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6">{getModalContent()}</div>
           </div>
-          <div className="p-6">{getModalContent()}</div>
         </div>
-      </div>
-    </ModalPortal>
+      </ModalPortal>
+
+      {showMissionModal && originCity && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <MissionModal
+              targetTile={tile}
+              originCity={originCity}
+              initialAction={missionAction}
+              onClose={() => setShowMissionModal(false)}
+              onMissionStart={handleMissionStart}
+            />
+          </div>
+        </ModalPortal>
+      )}
+    </>
   );
 }

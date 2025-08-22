@@ -1,5 +1,6 @@
 "use client";
 
+import { ActiveMissions } from "@/components/world/ActiveMissions";
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
 
@@ -16,6 +17,7 @@ export default function WorldPageClient() {
   return (
     <div className="w-full h-screen bg-gray-800">
       <WorldMap />
+      <ActiveMissions />
     </div>
   );
 }

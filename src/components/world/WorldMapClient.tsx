@@ -72,6 +72,7 @@ export default function WorldMapClient() {
       }
     }
     setSelectedTile(tile);
+    console.log(tile);
   };
 
   const handleCloseModal = () => {
@@ -184,6 +185,7 @@ export default function WorldMapClient() {
         ownerProfile={
           selectedTile?.ownerId ? userProfiles[selectedTile.ownerId] : null
         }
+        originCity={playerCities[0]}
       />
     </>
   );

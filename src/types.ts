@@ -101,7 +101,7 @@ export interface City {
   defense?: number;
   workforce?: number;
   capacity?: number;
-
+  tileId?: string;
   createdAt?: string;
   updatedAt?: string;
   lastTickAt?: string;
@@ -141,6 +141,7 @@ export interface RawCityData {
   trainingQueue?: TrainingQueueItem[];
   research?: Research;
   researchQueue?: ResearchQueueItem[];
+  tileId?: string;
   [key: string]: unknown;
 }
 
@@ -151,6 +152,9 @@ export interface UnitConfig {
   recruitTime: number; // in seconds
   attack: number;
   defense: number;
+  speed: number;
+  capacity: number;
+  counter: UnitKey;
 }
 
 export interface ResearchConfig {
@@ -220,6 +224,7 @@ export interface Tile {
   cityId?: string;
   npcCampId?: string;
   resourceType?: ResourceType;
+  activeMissionId?: string;
   resourceAmount?: number;
   npcLevel?: number;
   npcTroops?: {
@@ -228,3 +233,73 @@ export interface Tile {
     knight: number;
   };
 }
+
+export type WorldMissionAction = "ATTACK" | "SPY" | "GATHER" | "SEND_RSS";
+export type WorldMissionStatus =
+  | "outgoing"
+  | "arrived"
+  | "returning"
+  | "completed";
+
+export interface WorldMission {
+  id: string;
+  ownerId: string;
+  originCityId: string;
+  originCoords: { x: number; y: number };
+  targetTileId: string;
+  targetCoords: { x: number; y: number };
+  targetOwnerId?: string;
+  actionType: WorldMissionAction;
+  army: Record<UnitKey, number>;
+  resources?: Partial<Resources>;
+  startTime: number;
+  arrivalTime: number;
+  returnTime: number;
+  status: WorldMissionStatus;
+}
+
+export interface StartWorldMissionRequest {
+  originCityId: string;
+  targetTileId: string;
+  actionType: WorldMissionAction;
+  army: Record<UnitKey, number>;
+  resources?: Partial<Resources>;
+}
+
+export interface BattleReport {
+  attackerId: string;
+  defenderId: string;
+  attackerArmy: Record<UnitKey, number>;
+  defenderArmy: Record<UnitKey, number>;
+  rounds: BattleReportRound[];
+  winner: "attacker" | "defender" | "draw";
+  survivors: {
+    attacker: Record<UnitKey, number>;
+    defender: Record<UnitKey, number>;
+  };
+}
+
+export interface BattleReportRound {
+  round: number;
+  attackerDamage: number;
+  defenderDamage: number;
+  attackerLosses: Record<UnitKey, number>;
+  defenderLosses: Record<UnitKey, number>;
+}
+
+export interface MissionReport {
+  id: string;
+  actionType: "ATTACK" | "GATHER";
+  timestamp: Timestamp;
+  read: boolean;
+  targetCoords: { x: number; y: number };
+  battleDetails?: BattleReport;
+  gatheredResources?: Partial<Record<ResourceKey, number>>;
+}
+
+export const resourceIcons: Record<ResourceKey, string> = {
+  food: "/assets/icons/resources/food.png",
+  mana: "/assets/icons/resources/mana.png",
+  stone: "/assets/icons/resources/stone.png",
+  wood: "/assets/icons/resources/wood.png",
+};

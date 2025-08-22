@@ -15,6 +15,7 @@ module.exports = [
   ...tseslint.config({
     files: ["src/**/*.ts"],
     languageOptions: {
+      ecmaVersion: 6,
       parserOptions: {
         project: true,
         tsconfigRootDir: __dirname,
