@@ -15,7 +15,7 @@ export default function WorldPageClient() {
   );
 
   return (
-    <div className="w-full h-screen bg-gray-800">
+    <div className="w-full h-screen bg-gray-800 pt-[4.25rem]">
       <WorldMap />
       <ActiveMissions />
     </div>

@@ -1,35 +1,23 @@
-const globals = require("globals");
-const pluginJs = require("@eslint/js");
-const tseslint = require("typescript-eslint");
+// @ts-check
 
-module.exports = [
+import eslint from "@eslint/js";
+import tseslint from "typescript-eslint";
+
+export default tseslint.config(
   {
-    languageOptions: {
-      globals: {
-        ...globals.node,
-      },
-    },
+    ignores: ["lib", "node_modules"],
   },
-  pluginJs.configs.recommended,
 
-  ...tseslint.config({
-    files: ["src/**/*.ts"],
-    languageOptions: {
-      ecmaVersion: 6,
-      parserOptions: {
-        project: true,
-        tsconfigRootDir: __dirname,
-      },
-    },
+  eslint.configs.recommended,
+
+  ...tseslint.configs.recommended,
+
+  {
     rules: {
-      indent: ["error", 2],
       quotes: ["error", "double"],
-      "max-len": ["error", { code: 120 }],
-      "no-unused-vars": "warn",
+      "max-len": ["warn", { code: 120 }],
+      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-explicit-any": "warn",
     },
-  }),
-
-  {
-    ignores: ["lib/", "node_modules/"],
-  },
-];
+  }
+);

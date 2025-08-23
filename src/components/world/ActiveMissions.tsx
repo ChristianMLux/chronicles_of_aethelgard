@@ -50,6 +50,8 @@ export const ActiveMissions = () => {
       <div className="flex flex-col gap-3 max-h-60 overflow-y-auto">
         {missions.map((mission) => {
           const isOutgoing = mission.status === "outgoing";
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const _isArrived = mission.status === "arrived"; //todo : implement
           const relevantTime = isOutgoing
             ? mission.arrivalTime
             : mission.returnTime;

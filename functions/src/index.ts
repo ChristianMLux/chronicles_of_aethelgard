@@ -2,11 +2,21 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { simulateBattle } from "./combat";
 
 admin.initializeApp();
 const db = admin.firestore();
 
 // ========== TYPES ==========
+type BattleSimulationResult = ReturnType<typeof simulateBattle>;
+
+interface BattleReport extends BattleSimulationResult {
+  attackerId: string;
+  defenderId: string;
+  attackerUnits: Record<UnitKey, number>;
+  defenderUnits: Record<UnitKey, number>;
+}
+
 export type UnitKey = "swordsman" | "archer" | "knight";
 export type ResourceKey = "stone" | "wood" | "food" | "mana";
 export type level = number;
@@ -57,6 +67,7 @@ interface City {
   id: string;
   name: string;
   coords: { x: number; y: number };
+  ownerId: string;
   army?: Record<UnitKey, number>;
   resources?: Record<ResourceKey, number>;
   capacity?: Record<ResourceKey, number>;
@@ -70,35 +81,17 @@ interface City {
   lastTickAt?: admin.firestore.Timestamp;
 }
 
-interface BattleReport {
-  attackerId: string;
-  defenderId: string;
-  attackerUnits: Record<UnitKey, number>;
-  defenderUnits: Record<UnitKey, number>;
-  rounds: Array<{
-    round: number;
-    attackerDamage: number;
-    defenderDamage: number;
-    attackerLosses: Record<UnitKey, number>;
-    defenderLosses: Record<UnitKey, number>;
-  }>;
-  winner: "attacker" | "defender" | "draw";
-  survivors: {
-    attacker: Record<UnitKey, number>;
-    defender: Record<UnitKey, number>;
-  };
-}
-
 interface MissionReport {
   id: string;
   missionId: string;
   ownerId: string;
-  actionType: "ATTACK" | "GATHER";
+  actionType: "ATTACK" | "GATHER" | "DEFENSE";
   timestamp: FieldValue;
   read: boolean;
   targetCoords: { x: number; y: number };
   battleDetails?: BattleReport;
   gatheredResources?: Partial<Record<ResourceKey, number>>;
+  isDefender?: boolean;
 }
 
 // ========== UNIT CONFIG ==========
@@ -136,174 +129,6 @@ const PRODUCTION_RATES = {
   quarry: 60000,
   manamine: 40000,
 };
-
-// ========== COMBAT SYSTEM ==========
-interface CombatArmy {
-  ownerId: string;
-  army: Record<UnitKey, number>;
-  research: Research;
-}
-
-function calculateRoundDamage(
-  attackerArmy: Record<UnitKey, number>,
-  defenderArmy: Record<UnitKey, number>,
-  attackerResearch: Research,
-  defenderResearch: Research
-): number {
-  let totalDamage = 0;
-
-  for (const attackerType in attackerArmy) {
-    const attackerCount = attackerArmy[attackerType as UnitKey];
-    if (attackerCount <= 0) continue;
-
-    const attackerConfig = UNIT_CONFIG[attackerType as UnitKey];
-    let unitDamage = attackerCount * attackerConfig.attack;
-    unitDamage *= 1 + (attackerResearch.blacksmithing || 0) * 0.1;
-
-    for (const defenderType in defenderArmy) {
-      const defenderCount = defenderArmy[defenderType as UnitKey];
-      if (defenderCount <= 0) continue;
-
-      const defenderConfig = UNIT_CONFIG[defenderType as UnitKey];
-      let finalUnitDamage = unitDamage;
-
-      if (attackerConfig.counter === defenderType) {
-        finalUnitDamage *= 1.25;
-      }
-
-      const effectiveArmor =
-        defenderConfig.armor *
-        (1 + (defenderResearch.armorsmithing || 0) * 0.1);
-      const damagePerUnit = Math.max(
-        1,
-        finalUnitDamage / defenderCount - effectiveArmor
-      );
-      totalDamage += damagePerUnit * defenderCount;
-    }
-  }
-  return totalDamage;
-}
-
-function calculateLosses(
-  totalDamage: number,
-  army: Record<UnitKey, number>
-): Record<UnitKey, number> {
-  const losses: Record<UnitKey, number> = {
-    swordsman: 0,
-    archer: 0,
-    knight: 0,
-  };
-
-  const totalDefense = Object.entries(army).reduce((sum, [key, count]) => {
-    return sum + UNIT_CONFIG[key as UnitKey].defense * count;
-  }, 0);
-
-  if (totalDefense === 0) return losses;
-
-  for (const key in army) {
-    const unitType = key as UnitKey;
-    const unitCount = army[unitType];
-    if (unitCount > 0) {
-      const unitConfig = UNIT_CONFIG[unitType];
-      const proportionOfTotalDefense =
-        (unitConfig.defense * unitCount) / totalDefense;
-      const damageToType = totalDamage * proportionOfTotalDefense;
-      const unitsLost = Math.floor(damageToType / unitConfig.defense);
-      losses[unitType] = Math.min(unitCount, unitsLost);
-    }
-  }
-  return losses;
-}
-
-async function simulateCombat(
-  attacker: CombatArmy,
-  defender: CombatArmy
-): Promise<BattleReport> {
-  const attackerUnits = { ...attacker.army };
-  const defenderUnits = { ...defender.army };
-  const maxRounds = 20;
-  const report: BattleReport = {
-    attackerId: attacker.ownerId,
-    defenderId: defender.ownerId,
-    attackerUnits: { ...attacker.army },
-    defenderUnits: { ...defender.army },
-    rounds: [],
-    winner: "draw",
-    survivors: {
-      attacker: { swordsman: 0, archer: 0, knight: 0 },
-      defender: { swordsman: 0, archer: 0, knight: 0 },
-    },
-  };
-
-  for (let i = 0; i < maxRounds; i++) {
-    const roundNumber = i + 1;
-    const attackerTotalUnits = Object.values(attackerUnits).reduce(
-      (a, b) => a + b,
-      0
-    );
-    const defenderTotalUnits = Object.values(defenderUnits).reduce(
-      (a, b) => a + b,
-      0
-    );
-
-    if (attackerTotalUnits <= 0 || defenderTotalUnits <= 0) break;
-
-    const attackerDamage = calculateRoundDamage(
-      attackerUnits,
-      defenderUnits,
-      attacker.research,
-      defender.research
-    );
-    const defenderDamage = calculateRoundDamage(
-      defenderUnits,
-      attackerUnits,
-      defender.research,
-      attacker.research
-    );
-
-    const attackerLosses = calculateLosses(defenderDamage, attackerUnits);
-    const defenderLosses = calculateLosses(attackerDamage, defenderUnits);
-
-    for (const type in attackerLosses) {
-      attackerUnits[type as UnitKey] = Math.max(
-        0,
-        attackerUnits[type as UnitKey] - attackerLosses[type as UnitKey]
-      );
-    }
-    for (const type in defenderLosses) {
-      defenderUnits[type as UnitKey] = Math.max(
-        0,
-        defenderUnits[type as UnitKey] - defenderLosses[type as UnitKey]
-      );
-    }
-
-    report.rounds.push({
-      round: roundNumber,
-      attackerDamage,
-      defenderDamage,
-      attackerLosses,
-      defenderLosses,
-    });
-  }
-
-  const finalAttackerUnits = Object.values(attackerUnits).reduce(
-    (a, b) => a + b,
-    0
-  );
-  const finalDefenderUnits = Object.values(defenderUnits).reduce(
-    (a, b) => a + b,
-    0
-  );
-
-  if (finalAttackerUnits > 0 && finalDefenderUnits <= 0) {
-    report.winner = "attacker";
-  } else if (finalDefenderUnits > 0 && finalAttackerUnits <= 0) {
-    report.winner = "defender";
-  }
-
-  report.survivors = { attacker: attackerUnits, defender: defenderUnits };
-  return report;
-}
 
 // ========== RESOURCE TICK FUNCTION ==========
 export const resourceTick = functions.https.onRequest(async (req, res) => {
@@ -381,6 +206,30 @@ export const resourceTick = functions.https.onRequest(async (req, res) => {
   }
 });
 
+// ========== HELPER FUNCTIONS ==========
+function removeUndefinedValues<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefinedValues) as T;
+  }
+
+  if (typeof obj === "object") {
+    const cleaned: Record<string, unknown> = {};
+    for (const key in obj) {
+      const value = obj[key];
+      if (value !== undefined) {
+        cleaned[key] = removeUndefinedValues(value);
+      }
+    }
+    return cleaned as T;
+  }
+
+  return obj;
+}
+
 // ========== PROCESS MISSIONS FUNCTION ==========
 export const processMissions = onSchedule(
   {
@@ -390,7 +239,8 @@ export const processMissions = onSchedule(
     memory: "512MiB",
     maxInstances: 10,
   },
-  async (event) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async (_event) => {
     try {
       console.log("Starting to process missions...");
       const now = Date.now();
@@ -425,6 +275,7 @@ export const processMissions = onSchedule(
 
           if (!targetTileDoc.exists) {
             batch.update(missionRef, { status: "returning" });
+            processedMissions++;
             continue;
           }
           const targetTile = targetTileDoc.data() as Tile;
@@ -473,31 +324,25 @@ export const processMissions = onSchedule(
                   status: "returning",
                   reportId: "error_no_attacker_city",
                 });
+                processedMissions++;
                 continue;
               }
               const attackerCity = attackerCityDoc.data() as City;
 
-              const defaultResearch: Research = {
-                blacksmithing: 0,
-                armorsmithing: 0,
-                enchanting: 0,
-                logistics: 0,
-                espionage: 0,
-                administration: 0,
-              };
               const defaultUnits: Record<UnitKey, number> = {
                 swordsman: 0,
                 archer: 0,
                 knight: 0,
               };
 
-              const attackerArmy: CombatArmy = {
-                ownerId: mission.ownerId,
-                army: mission.army,
-                research: attackerCity.research || defaultResearch,
+              const attackerResearch = {
+                attack: attackerCity.research?.blacksmithing || 0,
+                armor: attackerCity.research?.armorsmithing || 0,
               };
 
-              let defenderArmy: CombatArmy | null = null;
+              let defenderArmyUnits: Record<UnitKey, number> = defaultUnits;
+              let defenderResearch = { attack: 0, armor: 0 };
+              let defenderOwnerId = "npc";
 
               if (
                 targetTile.type === "city" &&
@@ -512,80 +357,96 @@ export const processMissions = onSchedule(
                 const defenderCityDoc = await defenderCityRef.get();
                 if (defenderCityDoc.exists) {
                   const defenderCity = defenderCityDoc.data() as City;
-                  defenderArmy = {
-                    ownerId: targetTile.ownerId,
-                    army: { ...defaultUnits, ...(defenderCity.army || {}) },
-                    research: defenderCity.research || defaultResearch,
+                  defenderArmyUnits = {
+                    ...defaultUnits,
+                    ...(defenderCity.army || {}),
                   };
+                  defenderResearch = {
+                    attack: defenderCity.research?.blacksmithing || 0,
+                    armor: defenderCity.research?.armorsmithing || 0,
+                  };
+                  defenderOwnerId = targetTile.ownerId;
                 }
               } else if (targetTile.type === "npc_camp") {
-                defenderArmy = {
-                  ownerId: "npc",
-                  army: targetTile.npcTroops || {
-                    swordsman: 50,
-                    archer: 50,
-                    knight: 0,
-                  },
-                  research: {
-                    ...defaultResearch,
-                    blacksmithing: targetTile.npcLevel || 1,
-                    armorsmithing: targetTile.npcLevel || 1,
-                  },
+                defenderArmyUnits = targetTile.npcTroops || {
+                  swordsman: 50,
+                  archer: 50,
+                  knight: 0,
+                };
+                defenderResearch = {
+                  attack: targetTile.npcLevel || 1,
+                  armor: targetTile.npcLevel || 1,
                 };
               }
 
-              if (defenderArmy) {
-                const report = await simulateCombat(attackerArmy, defenderArmy);
-                const reportRef = db.collection("reports").doc();
-                batch.set(reportRef, report);
+              const report = simulateBattle(
+                mission.army,
+                defenderArmyUnits,
+                attackerResearch,
+                defenderResearch,
+                20 // max rounds
+              );
 
-                if (
-                  defenderArmy.ownerId !== "npc" &&
-                  targetTile.ownerId &&
-                  targetTile.cityId
-                ) {
-                  const defenderCityRef = db
-                    .collection("users")
-                    .doc(targetTile.ownerId)
-                    .collection("cities")
-                    .doc(targetTile.cityId);
-                  const defenderLossesUpdate: { [key: string]: FieldValue } =
-                    {};
-                  for (const unitType in report.survivors.defender) {
-                    const losses =
-                      (defenderArmy.army[unitType as UnitKey] || 0) -
-                      (report.survivors.defender[unitType as UnitKey] || 0);
-                    if (losses > 0) {
-                      defenderLossesUpdate[`army.${unitType}`] =
-                        FieldValue.increment(-losses);
-                    }
-                  }
-                  if (Object.keys(defenderLossesUpdate).length > 0) {
-                    batch.update(defenderCityRef, defenderLossesUpdate);
-                  }
-                } else if (
-                  defenderArmy.ownerId === "npc" &&
-                  report.winner === "attacker"
-                ) {
-                  batch.update(targetTileRef, {
-                    type: "empty",
-                    npcLevel: FieldValue.delete(),
-                    npcTroops: FieldValue.delete(),
-                    activeMissionId: FieldValue.delete(),
-                  });
-                }
+              const finalReport: BattleReport = {
+                ...report,
+                attackerId: mission.ownerId,
+                defenderId: defenderOwnerId,
+                attackerUnits: mission.army,
+                defenderUnits: defenderArmyUnits,
+              };
 
-                batch.update(missionRef, {
-                  status: "returning",
-                  army: report.survivors.attacker,
-                  reportId: reportRef.id,
+              const cleanedReport = removeUndefinedValues(finalReport);
+
+              const reportRef = db.collection("battleReports").doc();
+              batch.set(reportRef, cleanedReport);
+
+              if (defenderOwnerId !== "npc" && targetTile.cityId) {
+                const defenderCityRef = db
+                  .collection("users")
+                  .doc(defenderOwnerId)
+                  .collection("cities")
+                  .doc(targetTile.cityId);
+                batch.update(defenderCityRef, {
+                  army: report.survivors.defender,
                 });
-              } else {
-                batch.update(missionRef, {
-                  status: "returning",
-                  reportId: "error_no_defender",
+
+                const defenderReportRef = db
+                  .collection("users")
+                  .doc(defenderOwnerId)
+                  .collection("reports")
+                  .doc();
+
+                const defenderReport: MissionReport = {
+                  id: defenderReportRef.id,
+                  missionId: mission.id,
+                  ownerId: defenderOwnerId,
+                  actionType: "DEFENSE",
+                  timestamp: FieldValue.serverTimestamp(),
+                  read: false,
+                  targetCoords: mission.originCoords,
+                  battleDetails: cleanedReport,
+                  isDefender: true,
+                };
+
+                batch.set(defenderReportRef, defenderReport);
+              } else if (
+                defenderOwnerId === "npc" &&
+                report.winner === "attacker"
+              ) {
+                batch.update(targetTileRef, {
+                  type: "empty",
+                  npcLevel: FieldValue.delete(),
+                  npcTroops: FieldValue.delete(),
+                  activeMissionId: FieldValue.delete(),
                 });
               }
+
+              batch.update(missionRef, {
+                status: "returning",
+                army: report.survivors.attacker,
+                reportId: reportRef.id,
+              });
+
               break;
             }
           }
@@ -640,7 +501,7 @@ export const processMissions = onSchedule(
             };
           } else if (mission.actionType === "ATTACK" && mission.reportId) {
             const battleReportRef = db
-              .collection("reports")
+              .collection("battleReports")
               .doc(mission.reportId);
             const battleReportDoc = await battleReportRef.get();
             if (battleReportDoc.exists) {
@@ -654,7 +515,9 @@ export const processMissions = onSchedule(
                 read: false,
                 targetCoords: mission.targetCoords,
                 battleDetails: battleDetails,
+                isDefender: false,
               };
+
               batch.delete(battleReportRef);
             }
           }
