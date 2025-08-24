@@ -21,7 +21,6 @@ export function UpgradeModalContentResearch({
   isBusy: boolean;
   error: string | null;
 }) {
-  console.log(city);
   const currentLevel = city.research[researchKey] || 0;
   const nextLevel = currentLevel + 1;
   const upgradeDetails = config.levels[nextLevel];

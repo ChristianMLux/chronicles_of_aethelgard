@@ -68,9 +68,18 @@ type TileType = "empty" | "city" | "resource" | "npc_camp" | "ruins";
 type ZoneType = "outer" | "middle" | "center";
 type ResourceType = "food" | "wood" | "stone" | "mana";
 
+export interface Location {
+  region: string;
+  continent: string;
+  territory: string;
+  continentName: string;
+  territoryName: string;
+}
+
 interface Tile {
   id: string;
   coords: { x: number; y: number };
+  location: Location;
   type: TileType;
   terrain: TerrainType;
   zone: ZoneType;
@@ -111,6 +120,18 @@ const getWeightedRandom = <T extends string>(weights: Record<T, number>): T => {
   return Object.keys(weights)[0] as T; // Fallback
 };
 
+const getRegion = (
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number
+): string => {
+  if (x >= centerX && y < centerY) return "North-East";
+  if (x < centerX && y < centerY) return "North-West";
+  if (x < centerX && y >= centerY) return "South-West";
+  return "South-East"; // Also covers x >= centerX && y >= centerY
+};
+
 // ==================== CORE GENERATION LOGIC ====================
 export function generateWorld() {
   const { worldSize } = WORLD_CONFIG;
@@ -142,9 +163,18 @@ export function generateWorld() {
         zoneConfig = WORLD_CONFIG.zones.outer;
       }
 
+      const location: Location = {
+        region: getRegion(x, y, center.x, center.y),
+        continent: WORLD_CONFIG.continentId,
+        territory: zone,
+        continentName: WORLD_CONFIG.continentName,
+        territoryName: zone.charAt(0).toUpperCase() + zone.slice(1),
+      };
+
       const baseTile: Omit<Tile, "type"> = {
         id: getTileId(x, y),
         coords: { x, y },
+        location,
         terrain: getWeightedRandom(WORLD_CONFIG.terrain.weights),
         zone,
       };

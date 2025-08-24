@@ -20,7 +20,6 @@ export async function GET(
 
     getAdminApp();
     const db = getFirestore();
-    console.log("GET DOCS");
     const userDoc = await db.collection("users").doc(id).get();
 
     if (!userDoc.exists) {
@@ -29,9 +28,7 @@ export async function GET(
 
     const userData = userDoc.data();
     if (!userData) {
-      console.warn("BLABLABLA");
     }
-    console.log("userdata", userData);
     const publicProfile = {
       username: userData?.name || "Unknown Player",
     };

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ResourceKey } from "@/types";
 
 /**
@@ -37,7 +38,6 @@ export function canAfford(
  * @param timeValue The time value to convert.
  * @returns The timestamp in milliseconds.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getTimestampInMs(timeValue: any): number {
   if (!timeValue) return Date.now();
   if (typeof timeValue.toDate === "function") {

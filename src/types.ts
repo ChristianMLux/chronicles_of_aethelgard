@@ -217,6 +217,7 @@ export type ResourceType = "food" | "wood" | "stone" | "mana";
 export interface Tile {
   id: string;
   coords: { x: number; y: number };
+  location: Location;
   type: TileType;
   terrain: TerrainType;
   zone: ZoneType;

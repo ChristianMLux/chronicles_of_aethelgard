@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
     if (!researchId) {
       console.log("no research id");
     }
-    console.log("RESEARCH ID ", researchId);
 
     if (!city.research) {
       city.research = {

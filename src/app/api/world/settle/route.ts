@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
 
       transaction.update(cityRef, {
         tileId: tileId,
+        location: tileData.location,
       });
     });
 

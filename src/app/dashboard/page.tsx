@@ -1,157 +1,127 @@
-import { auth } from "firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { getAdminApp } from "@/lib/firebase-admin";
-import Link from "next/link";
-import { Clock, Newspaper, Swords, Users, Warehouse } from "lucide-react";
-import { DashboardCard } from "@/components/dashboard/DashboardCard";
-import { City } from "@/types";
+import DashboardClient from "@/components/dashboard/DashboardClient";
+import { WorldMission, Tile, City } from "@/types";
+import { getCurrentUser } from "@/lib/user";
+import { redirect } from "next/navigation";
+import { serialize } from "@/lib/serializer";
 
-const CityCard = ({ city }: { city: City }) => (
-  <div className="bg-panel-2/50 p-3 rounded-lg border border-outline/50 hover:border-rune/70 transition-colors">
-    <h3 className="font-bold text-base">{city.name}</h3>
-    <p className="text-xs text-gray-400">
-      {city.location.region}, {city.location.continent}
-    </p>
-    <div className="mt-2 text-xs">
-      {city.buildingQueue && Object.keys(city.buildingQueue).length > 0 ? (
-        Object.values(city.buildingQueue).map((item) => (
-          <div key={item.buildingId} className="flex items-center gap-1.5">
-            <Clock size={12} className="text-yellow-400" />
-            <span>
-              {item.buildingId} (Lvl {item.targetLevel})
-            </span>
-          </div>
-        ))
-      ) : (
-        <p className="text-gray-500 italic">Keine Bauaufträge</p>
-      )}
-    </div>
-    <Link
-      href={`/city/${city.id}`}
-      className="ui-button text-xs px-3 py-1 mt-3 block text-center"
-    >
-      Verwalten
-    </Link>
-  </div>
-);
+async function getDashboardData(userId: string) {
+  const adminApp = getAdminApp();
+  const db = adminApp.firestore();
+
+  // Fetch cities with tile information
+  const citiesRef = db.collection("users").doc(userId).collection("cities");
+  const citiesSnapshot = await citiesRef.get();
+
+  const citiesData: City[] = [];
+  const tileIds: string[] = [];
+
+  citiesSnapshot.docs.forEach((doc) => {
+    const cityData = doc.data() as City;
+    citiesData.push({ ...cityData, id: doc.id });
+    if (cityData.tileId) {
+      tileIds.push(cityData.tileId);
+    }
+  });
+
+  const tiles: { [key: string]: Tile } = {};
+  if (tileIds.length > 0) {
+    const tileChunks = [];
+    for (let i = 0; i < tileIds.length; i += 10) {
+      const chunk = tileIds.slice(i, i + 10);
+      const tilesRef = db.collection("world").where("id", "in", chunk);
+      tileChunks.push(tilesRef.get());
+    }
+    const tileSnapshots = await Promise.all(tileChunks);
+    tileSnapshots.forEach((snapshot) => {
+      snapshot.forEach((doc) => {
+        tiles[doc.id] = doc.data() as Tile;
+      });
+    });
+  }
+
+  const cities = citiesData.map((city) => {
+    const tile = city.tileId ? tiles[city.tileId] : undefined;
+
+    if (!tile && city.tileId) {
+      console.warn(
+        `Warning: Tile with ID '${city.tileId}' not found for city '${city.name}' (${city.id}). This may indicate inconsistent data.`
+      );
+    }
+
+    const actualLocation = tile
+      ? {
+          continent: tile.location.continentName,
+          zone: tile.zone,
+          coords: tile.coords,
+        }
+      : null;
+
+    return {
+      ...city,
+      location: tile ? tile.location : city.location,
+      actualLocation: actualLocation,
+    };
+  });
+
+  const missionsRef = db
+    .collection("worldMissions")
+    .where("ownerId", "==", userId);
+  const missionsSnapshot = await missionsRef.get();
+  const missions: WorldMission[] = missionsSnapshot.docs.map(
+    (doc) => ({ id: doc.id, ...doc.data() } as WorldMission)
+  );
+
+  const totalArmy = cities.reduce(
+    (acc, city) => ({
+      swordsman: acc.swordsman + (city.army?.swordsman || 0),
+      archer: acc.archer + (city.army?.archer || 0),
+      knight: acc.knight + (city.army?.knight || 0),
+    }),
+    { swordsman: 0, archer: 0, knight: 0 }
+  );
+
+  const totalResources = cities.reduce(
+    (acc, city) => ({
+      stone: acc.stone + (city.resources?.stone || 0),
+      wood: acc.wood + (city.resources?.wood || 0),
+      food: acc.food + (city.resources?.food || 0),
+      mana: acc.mana + (city.resources?.mana || 0),
+    }),
+    { stone: 0, wood: 0, food: 0, mana: 0 }
+  );
+
+  missions.forEach((mission) => {
+    totalArmy.swordsman += mission.army?.swordsman || 0;
+    totalArmy.archer += mission.army?.archer || 0;
+    totalArmy.knight += mission.army?.knight || 0;
+  });
+
+  totalArmy.swordsman = Math.round(totalArmy.swordsman);
+  totalArmy.archer = Math.round(totalArmy.archer);
+  totalArmy.knight = Math.round(totalArmy.knight);
+
+  const serializableCities = serialize(cities);
+  const serializableMissions = serialize(missions);
+
+  return {
+    cities: serializableCities,
+    missions: serializableMissions,
+    stats: {
+      totalCities: cities.length,
+      totalArmy,
+      totalResources,
+    },
+  };
+}
 
 export default async function DashboardPage() {
-  const adminApp = getAdminApp();
-  const adminDb = getFirestore(adminApp);
-  const cookieStore = cookies();
-  const session = (await cookieStore).get("session")?.value || "";
-
-  if (!session) redirect("/auth/signin");
-
-  let decodedClaims;
-  try {
-    decodedClaims = await auth().verifySessionCookie(session, true);
-  } catch (error) {
-    console.error("Error verifying session cookie:", error);
+  const user = await getCurrentUser();
+  if (!user) {
     redirect("/auth/signin");
   }
 
-  if (!decodedClaims) redirect("/auth/signin");
+  const { cities, missions, stats } = await getDashboardData(user.uid);
 
-  const userId = decodedClaims.uid;
-
-  const citiesRef = adminDb
-    .collection("users")
-    .doc(userId)
-    .collection("cities");
-  const querySnapshot = await citiesRef.get();
-  const userCities: City[] = querySnapshot.docs.map(
-    (doc) => ({ id: doc.id, ...doc.data() } as City)
-  );
-
-  const mockArmies = [
-    {
-      id: 1,
-      name: "Vorhut des Löwen",
-      mission: "Patrouille",
-      location: "Grünwald",
-    },
-    {
-      id: 2,
-      name: "Eiserne Faust",
-      mission: "Belagerung",
-      location: "Grauwacht",
-    },
-  ];
-  const mockAlliance = { name: "Die Silberne Hand", members: 42 };
-  const mockEvents = [
-    { title: "Fest der Ernte", description: "Bonus auf Nahrungsproduktion" },
-    { title: "Ruf des Krieges", description: "Schnellere Truppenausbildung" },
-  ];
-
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 pt-24">
-      <div className="max-w-screen-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Reichsübersicht</h1>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {/* Column 1: Cities */}
-          <DashboardCard
-            title="Meine Städte"
-            icon={<Warehouse size={20} />}
-            className="xl:col-span-1"
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-              {userCities.length > 0 ? (
-                userCities.map((city) => <CityCard key={city.id} city={city} />)
-              ) : (
-                <p className="text-gray-400">Noch keine Stadt gegründet.</p>
-              )}
-            </div>
-          </DashboardCard>
-
-          {/* Column 2: Armies & Alliances */}
-          <div className="flex flex-col gap-6 xl:col-span-2">
-            <DashboardCard title="Armeebewegungen" icon={<Swords size={20} />}>
-              <ul className="space-y-2 text-sm">
-                {mockArmies.map((army) => (
-                  <li key={army.id} className="flex justify-between">
-                    <span>{army.name}</span>
-                    <span className="text-gray-400">
-                      {army.mission} bei {army.location}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </DashboardCard>
-            <DashboardCard title="Allianz" icon={<Users size={20} />}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold">{mockAlliance.name}</h3>
-                  <p className="text-sm text-gray-400">
-                    {mockAlliance.members} Mitglieder
-                  </p>
-                </div>
-                <Link href="#" className="ui-link text-sm">
-                  Zur Allianz
-                </Link>
-              </div>
-            </DashboardCard>
-          </div>
-
-          {/* Column 3: Events & News */}
-          <DashboardCard
-            title="Events & Neuigkeiten"
-            icon={<Newspaper size={20} />}
-          >
-            <ul className="space-y-3">
-              {mockEvents.map((event, i) => (
-                <li key={i}>
-                  <h4 className="font-semibold text-sm">{event.title}</h4>
-                  <p className="text-xs text-gray-400">{event.description}</p>
-                </li>
-              ))}
-            </ul>
-          </DashboardCard>
-        </div>
-      </div>
-    </div>
-  );
+  return <DashboardClient initialData={{ cities, missions, stats }} />;
 }

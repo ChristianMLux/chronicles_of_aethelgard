@@ -56,12 +56,10 @@ export default function WorldMapClient() {
 
     if (tile.type === "city" && tile.ownerId && !userProfiles[tile.ownerId]) {
       try {
-        console.log("yes wir sind hier");
         const response = await fetch(`/api/user/${tile.ownerId}`);
 
         if (response.ok) {
           const profile = await response.json();
-          console.log("resp", response);
           setUserProfiles((prev) => ({
             ...prev,
             [tile.ownerId as string]: profile,
@@ -72,7 +70,6 @@ export default function WorldMapClient() {
       }
     }
     setSelectedTile(tile);
-    console.log(tile);
   };
 
   const handleCloseModal = () => {
