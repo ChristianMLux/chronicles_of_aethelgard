@@ -10,14 +10,16 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import Link from "next/link";
-import { Eye, EyeOff, Crosshair, Box } from "lucide-react";
-import { UnitKey, ResourceKey } from "@/types";
+import { Eye, EyeOff, Crosshair, Box, Swords } from "lucide-react"; // MODIFIED: Imported Swords for Spy icon
+import { UnitKey, ResourceKey, SpyReport } from "@/types"; // MODIFIED: Imported SpyReport
 import { CompactBattleReport } from "@/components/reports/BattleReportCompact";
+import { CompactSpyReport } from "@/components/reports/SpyReportCompact"; // ADDED: Import compact spy report
 
 interface ArmyUnits {
   swordsman: number;
   archer: number;
   knight: number;
+  spy: number; // ADDED: spy unit
 }
 
 interface UnitDetail {
@@ -55,10 +57,11 @@ interface BattleReportDetails {
 interface MissionReport {
   id: string;
   read: boolean;
-  actionType: "ATTACK" | "GATHER" | "SPY" | "SEND_RSS";
+  actionType: "ATTACK" | "GATHER" | "SPY" | "SEND_RSS" | "DEFENSE";
   targetCoords: { x: number; y: number };
   timestamp: Timestamp;
   battleDetails?: BattleReportDetails;
+  spyDetails?: SpyReport;
   gatheredResources?: Partial<Record<ResourceKey, number>>;
   missionId: string;
   ownerId: string;
@@ -84,7 +87,7 @@ export default function ReportsPage() {
 
   const getReportSummary = (report: MissionReport) => {
     const coords = `(${report.targetCoords.x}, ${report.targetCoords.y})`;
-    if (report.actionType === "ATTACK") {
+    if (report.actionType === "ATTACK" || report.actionType === "DEFENSE") {
       const winner = report.battleDetails?.winner;
       if (winner === "attacker") return `Sieg bei ${coords}`;
       if (winner === "defender") return `Niederlage bei ${coords}`;
@@ -96,14 +99,22 @@ export default function ReportsPage() {
         .join(", ");
       return `Ressourcen gesammelt bei ${coords}: ${resources || "Nichts"}`;
     }
+    if (report.actionType === "SPY") {
+      if (report.spyDetails?.success) {
+        return `Spionage bei ${coords} erfolgreich`;
+      }
+      return `Spionage bei ${coords} fehlgeschlagen`;
+    }
     return "Unbekannter Bericht";
   };
 
   const getReportIcon = (report: MissionReport) => {
-    if (report.actionType === "ATTACK")
+    if (report.actionType === "ATTACK" || report.actionType === "DEFENSE")
       return <Crosshair className="text-red-400" />;
     if (report.actionType === "GATHER")
       return <Box className="text-yellow-400" />;
+    if (report.actionType === "SPY")
+      return <Swords className="text-blue-400" />;
     return null;
   };
 
@@ -157,6 +168,13 @@ export default function ReportsPage() {
                         ? "Du"
                         : "Gegner"
                     }
+                  />
+                )}
+                {report.actionType === "SPY" && report.spyDetails && (
+                  <CompactSpyReport
+                    reportData={report.spyDetails}
+                    attackerName="Du"
+                    defenderName="Gegner"
                   />
                 )}
 

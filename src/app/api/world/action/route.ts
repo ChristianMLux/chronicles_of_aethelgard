@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/user";
 import { getAdminApp } from "@/lib/firebase-admin";
 import { FieldValue, Transaction } from "firebase-admin/firestore";
-import { UNIT_CONFIG } from "@/config/units.config";
+import { UNITS, UNIT_LIST } from "@/config/units.config";
 import * as admin from "firebase-admin";
 import { calculateDistance } from "@/utils/map.utils";
 
@@ -15,7 +15,11 @@ const startMissionSchema = z.object({
   originCityId: z.string().min(1),
   targetTileId: z.string().min(1),
   actionType: z.enum(["ATTACK", "SPY", "GATHER", "SEND_RSS"]),
-  army: z.record(z.string(), z.number().int().min(1)),
+  army: z
+    .record(z.enum(UNIT_LIST), z.number().int().min(0))
+    .refine((army) => Object.values(army).some((count) => count > 0), {
+      message: "You must send at least one unit.",
+    }),
   resources: z
     .object({
       food: z.number().int().min(0).optional(),
@@ -121,7 +125,7 @@ export async function POST(req: NextRequest) {
 
       let slowestSpeed = Infinity;
       Object.keys(army).forEach((unitId) => {
-        const unitDetails = UNIT_CONFIG[unitId as keyof typeof UNIT_CONFIG];
+        const unitDetails = UNITS[unitId as keyof typeof UNITS];
         if (unitDetails && unitDetails.speed < slowestSpeed) {
           slowestSpeed = unitDetails.speed;
         }

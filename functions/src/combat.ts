@@ -6,12 +6,13 @@ interface UnitStats {
   counters: UnitType;
 }
 
-type UnitType = "swordsman" | "archer" | "knight";
+type UnitType = "swordsman" | "archer" | "knight" | "spy";
 
 interface Army {
   swordsman: number;
   archer: number;
   knight: number;
+  spy: number;
 }
 
 export interface CombatResult {
@@ -62,6 +63,12 @@ const UNIT_STATS: Record<UnitType, UnitStats> = {
     defense: 150,
     armor: 20,
     counters: "archer",
+  },
+  spy: {
+    attack: 1,
+    defense: 1,
+    armor: 100,
+    counters: "swordsman",
   },
 };
 
@@ -131,7 +138,7 @@ function calculateArmyDamage(
   defenderArmorResearch: number = 0
 ): CombatResult {
   const details: UnitCombatDetail[] = [];
-  const totalLosses: Army = { swordsman: 0, archer: 0, knight: 0 };
+  const totalLosses: Army = { swordsman: 0, archer: 0, knight: 0, spy: 0 };
   let totalDamage = 0;
   let hasAnyCounter = false;
   let primaryCounterType: UnitType | undefined;
@@ -327,6 +334,7 @@ export function formatBattleReport(
     swordsman: "⚔️",
     archer: "🏹",
     knight: "🐴",
+    spy: "🕵️‍♂️",
   };
 
   logs.push("⚔️ KAMPF BEGINNT ⚔️");

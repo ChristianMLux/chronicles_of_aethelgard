@@ -42,7 +42,7 @@ interface ArmyUnits {
 }
 
 interface UnitDetail {
-  unitType: "swordsman" | "archer" | "knight";
+  unitType: "swordsman" | "archer" | "knight" | "spy";
   unitCount: number;
   damage: number;
   losses: number;
@@ -59,12 +59,14 @@ export const BattleReportClient: React.FC<BattleReportProps> = ({
     swordsman: "⚔️",
     archer: "🏹",
     knight: "🐴",
+    spy: "🕵️‍♂️",
   };
 
   const unitNames = {
     swordsman: "Schwertkämpfer",
     archer: "Bogenschützen",
     knight: "Ritter",
+    spy: "Spion",
   };
 
   const isNewReportFormat =

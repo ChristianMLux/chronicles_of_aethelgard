@@ -6,6 +6,10 @@ import { ResourceKey } from "@/types";
  */
 export const numberFmt = new Intl.NumberFormat("de-DE");
 
+export const formatNumber = (num: number) => {
+  return num.toLocaleString("de-DE");
+};
+
 export function formatTime(seconds: number): string {
   if (seconds <= 0) return "00:00:00";
   const h = Math.floor(seconds / 3600)

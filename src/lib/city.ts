@@ -181,6 +181,7 @@ function serverSerializeCityData(cityData: RawCityData): City {
       swordsman: cityData.army?.swordsman || 0,
       archer: cityData.army?.archer || 0,
       knight: cityData.army?.knight || 0,
+      spy: cityData.army?.spy || 0,
     },
     research: {
       blacksmithing: cityData.research?.blacksmithing || 1,

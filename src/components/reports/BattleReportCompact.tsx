@@ -31,7 +31,7 @@ interface ArmyUnits {
   knight: number;
 }
 interface UnitDetail {
-  unitType: "swordsman" | "archer" | "knight";
+  unitType: "swordsman" | "archer" | "knight" | "spy";
   unitCount: number;
   damage: number;
   losses: number;

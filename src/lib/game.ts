@@ -1,11 +1,7 @@
 import { BASE_BUILDING_COST, BUILDING_LIST } from "@/config/buildings.config";
 import { GAME_CONSTANTS } from "@/config/game.constants";
 import { RESEARCH_CONFIG } from "@/config/research.config";
-import {
-  UNIT_CONFIG,
-  UNIT_DETAILS_CONFIG,
-  UNIT_LIST,
-} from "@/config/units.config";
+import { UNITS, UNIT_LIST } from "@/config/units.config";
 import { GameConfig, ResearchKey, ResourceKey } from "@/types";
 
 export async function getGameConfig(): Promise<GameConfig> {
@@ -21,6 +17,7 @@ export async function getGameConfig(): Promise<GameConfig> {
       swordsman: {},
       archer: {},
       knight: {},
+      spy: {},
     },
     research: {
       blacksmithing: {},
@@ -57,8 +54,7 @@ export async function getGameConfig(): Promise<GameConfig> {
 
   for (const unit of UNIT_LIST) {
     config.units[unit][1] = {
-      ...UNIT_CONFIG[unit],
-      ...UNIT_DETAILS_CONFIG[unit],
+      ...UNITS[unit],
     };
   }
 

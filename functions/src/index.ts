@@ -17,7 +17,24 @@ interface BattleReport extends BattleSimulationResult {
   defenderUnits: Record<UnitKey, number>;
 }
 
-export type UnitKey = "swordsman" | "archer" | "knight";
+interface SpyReport {
+  success: boolean;
+  detectionChance: number;
+  spiesLost: number;
+  targetResources?: Partial<Record<ResourceKey, number>>;
+  targetArmy?: Record<UnitKey, number>;
+  targetBuildings?: {
+    farm?: number;
+    sawmill?: number;
+    quarry?: number;
+    manamine?: number;
+    barracks?: number;
+  };
+  targetResearch?: Research;
+  targetCityCount?: number;
+}
+
+export type UnitKey = "swordsman" | "archer" | "knight" | "spy";
 export type ResourceKey = "stone" | "wood" | "food" | "mana";
 export type level = number;
 
@@ -85,11 +102,12 @@ interface MissionReport {
   id: string;
   missionId: string;
   ownerId: string;
-  actionType: "ATTACK" | "GATHER" | "DEFENSE";
+  actionType: "ATTACK" | "GATHER" | "DEFENSE" | "SPY";
   timestamp: FieldValue;
   read: boolean;
   targetCoords: { x: number; y: number };
   battleDetails?: BattleReport;
+  spyDetails?: SpyReport;
   gatheredResources?: Partial<Record<ResourceKey, number>>;
   isDefender?: boolean;
 }
@@ -119,6 +137,15 @@ const UNIT_CONFIG = {
     speed: 100,
     capacity: 25,
     counter: "archer" as UnitKey,
+  },
+  spy: {
+    attack: 1,
+    defense: 1,
+    armor: 100,
+    speed: 150,
+    capacity: 25,
+    counter: "swordsman" as UnitKey,
+    spyPower: 10,
   },
 };
 
@@ -333,6 +360,7 @@ export const processMissions = onSchedule(
                 swordsman: 0,
                 archer: 0,
                 knight: 0,
+                spy: 0,
               };
 
               const attackerResearch = {
@@ -372,6 +400,7 @@ export const processMissions = onSchedule(
                   swordsman: 50,
                   archer: 50,
                   knight: 0,
+                  spy: 0,
                 };
                 defenderResearch = {
                   attack: targetTile.npcLevel || 1,
@@ -449,6 +478,155 @@ export const processMissions = onSchedule(
 
               break;
             }
+
+            case "SPY": {
+              const attackerCityRef = db
+                .collection("users")
+                .doc(mission.ownerId)
+                .collection("cities")
+                .doc(mission.originCityId);
+              const attackerCityDoc = await attackerCityRef.get();
+
+              if (!attackerCityDoc.exists) {
+                batch.update(missionRef, {
+                  status: "returning",
+                  reportId: "error_no_attacker_city",
+                });
+                processedMissions++;
+                continue;
+              }
+              const attackerCity = attackerCityDoc.data() as City;
+              const attackerEspionageLevel =
+                attackerCity.research?.espionage || 0;
+
+              const spyCount = mission.army.spy || 0;
+
+              if (spyCount === 0) {
+                batch.update(missionRef, {
+                  status: "returning",
+                  reportId: "error_no_spies",
+                });
+                processedMissions++;
+                continue;
+              }
+
+              // Success-rate
+              const successChance = Math.min(
+                100,
+                50 + attackerEspionageLevel * 10 + spyCount / 100
+              );
+
+              const successRoll = Math.random() * 100;
+              const success = successRoll <= successChance;
+
+              const spyReport: SpyReport = {
+                success: success,
+                detectionChance: 0,
+                spiesLost: 0,
+              };
+
+              if (
+                targetTile.type === "city" &&
+                targetTile.ownerId &&
+                targetTile.cityId
+              ) {
+                const defenderCityRef = db
+                  .collection("users")
+                  .doc(targetTile.ownerId)
+                  .collection("cities")
+                  .doc(targetTile.cityId);
+                const defenderCityDoc = await defenderCityRef.get();
+
+                if (defenderCityDoc.exists) {
+                  const defenderCity = defenderCityDoc.data() as City;
+                  const defenderEspionageLevel =
+                    defenderCity.research?.espionage || 0;
+
+                  // Detection-Rate
+                  const detectionChance = Math.max(
+                    0,
+                    30 +
+                      defenderEspionageLevel * 10 -
+                      attackerEspionageLevel * 5 -
+                      spyCount / 200
+                  );
+
+                  spyReport.detectionChance = detectionChance;
+
+                  const detectionRoll = Math.random() * 100;
+                  const wasDetected = detectionRoll <= detectionChance;
+
+                  if (wasDetected) {
+                    const lossPercentage = 0.1 + Math.random() * 0.4;
+                    spyReport.spiesLost = Math.floor(spyCount * lossPercentage);
+                  }
+
+                  if (success) {
+                    spyReport.targetResources = defenderCity.resources;
+                    spyReport.targetArmy = defenderCity.army;
+                    spyReport.targetBuildings = defenderCity.buildings;
+                    spyReport.targetResearch = defenderCity.research;
+
+                    const defenderCitiesSnapshot = await db
+                      .collection("users")
+                      .doc(targetTile.ownerId)
+                      .collection("cities")
+                      .get();
+                    spyReport.targetCityCount = defenderCitiesSnapshot.size;
+                  }
+
+                  if (wasDetected) {
+                    const defenderReportRef = db
+                      .collection("users")
+                      .doc(targetTile.ownerId)
+                      .collection("reports")
+                      .doc();
+
+                    const defenderReport: MissionReport = {
+                      id: defenderReportRef.id,
+                      missionId: mission.id,
+                      ownerId: targetTile.ownerId,
+                      actionType: "DEFENSE",
+                      timestamp: FieldValue.serverTimestamp(),
+                      read: false,
+                      targetCoords: mission.originCoords,
+                      spyDetails: {
+                        success: false,
+                        detectionChance: detectionChance,
+                        spiesLost: 0,
+                      },
+                      isDefender: true,
+                    };
+
+                    batch.set(defenderReportRef, defenderReport);
+                  }
+                }
+              } else if (targetTile.type === "npc_camp") {
+                spyReport.detectionChance = 0;
+                spyReport.spiesLost = 0;
+
+                if (success) {
+                  spyReport.targetArmy = targetTile.npcTroops || {
+                    swordsman: 0,
+                    archer: 0,
+                    knight: 0,
+                    spy: 0,
+                  };
+                }
+              }
+
+              const spyReportRef = db.collection("spyReports").doc();
+              batch.set(spyReportRef, removeUndefinedValues(spyReport));
+
+              const remainingSpies = spyCount - spyReport.spiesLost;
+              batch.update(missionRef, {
+                status: "returning",
+                army: { ...mission.army, spy: remainingSpies },
+                reportId: spyReportRef.id,
+              });
+
+              break;
+            }
           }
           processedMissions++;
         }
@@ -499,6 +677,28 @@ export const processMissions = onSchedule(
               targetCoords: mission.targetCoords,
               gatheredResources: mission.resources,
             };
+          } else if (mission.actionType === "SPY" && mission.reportId) {
+            const spyReportRef = db
+              .collection("spyReports")
+              .doc(mission.reportId);
+            const spyReportDoc = await spyReportRef.get();
+
+            if (spyReportDoc.exists) {
+              const spyDetails = spyReportDoc.data() as SpyReport;
+
+              newReport = {
+                id: userReportRef.id,
+                missionId: mission.id,
+                ownerId: mission.ownerId,
+                actionType: "SPY",
+                timestamp: FieldValue.serverTimestamp(),
+                read: false,
+                targetCoords: mission.targetCoords,
+                spyDetails: spyDetails,
+              };
+
+              batch.delete(spyReportRef);
+            }
           } else if (mission.actionType === "ATTACK" && mission.reportId) {
             const battleReportRef = db
               .collection("battleReports")

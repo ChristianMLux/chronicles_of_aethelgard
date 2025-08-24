@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase-admin/firestore";
+import { UNITS } from "./config/units.config";
 
 export interface Location {
   region: string;
@@ -23,7 +24,7 @@ export type BuildingKey =
 
 export type ResourceKey = "stone" | "wood" | "food" | "mana";
 
-export type UnitKey = "swordsman" | "archer" | "knight";
+export type UnitKey = keyof typeof UNITS;
 
 export type ResearchKey =
   | "blacksmithing"
@@ -155,6 +156,7 @@ export interface UnitConfig {
   speed: number;
   capacity: number;
   counter: UnitKey;
+  spyPower?: number;
 }
 
 export interface ResearchConfig {
@@ -290,11 +292,12 @@ export interface BattleReportRound {
 
 export interface MissionReport {
   id: string;
-  actionType: "ATTACK" | "GATHER";
+  actionType: "ATTACK" | "GATHER" | "SPY" | "DEFENSE";
   timestamp: Timestamp;
   read: boolean;
   targetCoords: { x: number; y: number };
   battleDetails?: BattleReport;
+  spyDetails?: SpyReport;
   gatheredResources?: Partial<Record<ResourceKey, number>>;
 }
 
@@ -304,3 +307,14 @@ export const resourceIcons: Record<ResourceKey, string> = {
   stone: "/assets/icons/resources/stone.png",
   wood: "/assets/icons/resources/wood.png",
 };
+
+export interface SpyReport {
+  success: boolean;
+  detectionChance: number;
+  spiesLost: number;
+  targetResources?: Partial<Record<ResourceKey, number>>;
+  targetArmy?: Record<UnitKey, number>;
+  targetBuildings?: Partial<Buildings>;
+  targetResearch?: Partial<Research>;
+  targetCityCount?: number;
+}

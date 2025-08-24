@@ -19,6 +19,7 @@ export default function ArmyClient({ initialGameConfig }: ArmyClientProps) {
     swordsman: 1,
     archer: 1,
     knight: 1,
+    spy: 1,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +39,7 @@ export default function ArmyClient({ initialGameConfig }: ArmyClientProps) {
       setRemainingTime(null);
       return;
     }
+    console.log(trainingItem);
     const endTimeMillis = trainingItem.endTime.toMillis();
     const now = currentTime;
     const remaining = Math.round((endTimeMillis - now) / 1000);

@@ -6,12 +6,14 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/components/AuthProvider";
 import { getDb } from "@/../firebase";
 import { BattleReportClient } from "@/components/reports/BattleReportClient";
-import { UnitKey } from "@/types";
+import { SpyReportClient } from "@/components/reports/SpyReportClient";
+import { UnitKey, MissionReport, SpyReport } from "@/types";
 
 interface ArmyUnits {
   swordsman: number;
   archer: number;
   knight: number;
+  spy: number;
 }
 
 interface UnitDetail {
@@ -38,8 +40,8 @@ interface RoundData {
 interface BattleReportDetails {
   attackerId: string;
   defenderId: string;
-  attackerUnits: ArmyUnits;
-  defenderUnits: ArmyUnits;
+  attackerArmy: ArmyUnits;
+  defenderArmy: ArmyUnits;
   winner: "attacker" | "defender" | "draw";
   survivors: {
     attacker: ArmyUnits;
@@ -48,9 +50,10 @@ interface BattleReportDetails {
   rounds: RoundData[];
 }
 
-interface UserReport {
+interface UserReport extends MissionReport {
   id: string;
   battleDetails?: BattleReportDetails;
+  spyDetails?: SpyReport;
   read: boolean;
 }
 
@@ -98,30 +101,77 @@ export default function ReportPage() {
   }, [user, reportId, db]);
 
   if (loading) {
-    return <div className="text-center p-8">Lade Kampfbericht...</div>;
+    return <div className="text-center p-8">Lade Bericht...</div>;
   }
 
   if (error) {
     return <div className="text-center p-8 text-red-500">{error}</div>;
   }
 
-  if (!report || !report.battleDetails) {
+  if (!report) {
     return (
       <div className="text-center p-8">
-        Keine Kampfdetails für diesen Bericht verfügbar.
+        Bericht konnte nicht geladen werden.
       </div>
     );
   }
 
-  const isAttacker = report.battleDetails.attackerId === user?.uid;
+  const renderContent = () => {
+    switch (report.actionType) {
+      case "ATTACK":
+      case "DEFENSE":
+        if (!report.battleDetails) {
+          return (
+            <div className="text-center p-8">
+              Keine Kampfdetails für diesen Bericht verfügbar.
+            </div>
+          );
+        }
+        const isAttacker = report.battleDetails.attackerId === user?.uid;
+        return (
+          <BattleReportClient
+            battleData={report.battleDetails}
+            attackerName={isAttacker ? "Du" : "Gegner"}
+            defenderName={!isAttacker ? "Du" : "Gegner"}
+          />
+        );
+
+      case "SPY":
+        if (!report.spyDetails) {
+          return (
+            <div className="text-center p-8">
+              Keine Spionagedetails für diesen Bericht verfügbar.
+            </div>
+          );
+        }
+        return (
+          <SpyReportClient
+            reportData={report.spyDetails}
+            attackerName="Du"
+            defenderName="Gegner"
+          />
+        );
+
+      default:
+        if (report.battleDetails) {
+          const isAttacker = report.battleDetails.attackerId === user?.uid;
+          return (
+            <BattleReportClient
+              battleData={report.battleDetails}
+              attackerName={isAttacker ? "Du" : "Gegner"}
+              defenderName={!isAttacker ? "Du" : "Gegner"}
+            />
+          );
+        }
+        return (
+          <div className="text-center p-8">
+            Unbekannter oder veralteter Berichtstyp.
+          </div>
+        );
+    }
+  };
 
   return (
-    <div className="container mx-auto p-4 mt-[4.25rem]">
-      <BattleReportClient
-        battleData={report.battleDetails}
-        attackerName={isAttacker ? "Du" : "Gegner"}
-        defenderName={!isAttacker ? "Du" : "Gegner"}
-      />
-    </div>
+    <div className="container mx-auto p-4 mt-[4.25rem]">{renderContent()}</div>
   );
 }

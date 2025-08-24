@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tile, City, UnitKey, WorldMissionAction } from "@/types";
-import { UNIT_CONFIG, UNIT_DETAILS_CONFIG } from "@/config/units.config";
+import { UNITS } from "@/config/units.config";
 import { getAuth } from "firebase/auth";
 
 interface MissionModalProps {
@@ -26,6 +26,7 @@ export default function MissionModal({
     swordsman: 0,
     archer: 0,
     knight: 0,
+    spy: 0, // ADDED: spy unit
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +35,18 @@ export default function MissionModal({
     swordsman: 0,
     archer: 0,
     knight: 0,
+    spy: 0, // ADDED: spy unit
   };
+
+  // Reset units when action changes to avoid sending wrong units
+  useEffect(() => {
+    setUnitsToSend({
+      swordsman: 0,
+      archer: 0,
+      knight: 0,
+      spy: 0,
+    });
+  }, [selectedAction]);
 
   const handleUnitChange = (unit: UnitKey, value: string) => {
     const amount = parseInt(value, 10);
@@ -97,8 +109,10 @@ export default function MissionModal({
   };
 
   const renderUnitSelector = (unitKey: UnitKey) => {
-    const unitDetails = UNIT_DETAILS_CONFIG[unitKey];
+    const unitDetails = UNITS[unitKey];
     const maxAmount = availableUnits[unitKey] || 0;
+
+    if (maxAmount === 0) return null;
 
     return (
       <div key={unitKey} className="mb-4">
@@ -134,6 +148,13 @@ export default function MissionModal({
     );
   };
 
+  const unitsForMission = (Object.keys(UNITS) as UnitKey[]).filter((unit) => {
+    if (selectedAction === "SPY") {
+      return unit === "spy";
+    }
+    return unit !== "spy";
+  });
+
   return (
     <div className="p-6 bg-gray-800 text-white rounded-lg shadow-xl">
       <h2 className="text-2xl font-bold mb-4">
@@ -159,7 +180,8 @@ export default function MissionModal({
 
       <form onSubmit={handleSubmit}>
         <h3 className="text-lg font-semibold mb-3">Einheiten auswählen</h3>
-        {(Object.keys(UNIT_CONFIG) as UnitKey[]).map(renderUnitSelector)}
+
+        {unitsForMission.map(renderUnitSelector)}
 
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
