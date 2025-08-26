@@ -34,6 +34,15 @@ interface SpyReport {
   targetCityCount?: number;
 }
 
+interface ResourceTransferReport {
+  success: boolean;
+  resources: Partial<Record<ResourceKey, number>>;
+  senderCityId: string;
+  receiverCityId: string;
+  senderName?: string;
+  receiverName?: string;
+}
+
 export type UnitKey = "swordsman" | "archer" | "knight" | "spy";
 export type ResourceKey = "stone" | "wood" | "food" | "mana";
 export type level = number;
@@ -102,13 +111,14 @@ interface MissionReport {
   id: string;
   missionId: string;
   ownerId: string;
-  actionType: "ATTACK" | "GATHER" | "DEFENSE" | "SPY";
+  actionType: "ATTACK" | "GATHER" | "DEFENSE" | "SPY" | "RESOURCE_TRANSFER";
   timestamp: FieldValue;
   read: boolean;
   targetCoords: { x: number; y: number };
   battleDetails?: BattleReport;
   spyDetails?: SpyReport;
   gatheredResources?: Partial<Record<ResourceKey, number>>;
+  transferDetails?: ResourceTransferReport;
   isDefender?: boolean;
 }
 
@@ -308,6 +318,101 @@ export const processMissions = onSchedule(
           const targetTile = targetTileDoc.data() as Tile;
 
           switch (mission.actionType) {
+            case "SEND_RSS": {
+              // Resource Transfer Logic
+              if (
+                !mission.resources ||
+                !targetTile.cityId ||
+                !targetTile.ownerId
+              ) {
+                batch.update(missionRef, {
+                  status: "returning",
+                  reportId: "error_no_target_city",
+                });
+                processedMissions++;
+                continue;
+              }
+
+              const receiverCityRef = db
+                .collection("users")
+                .doc(targetTile.ownerId)
+                .collection("cities")
+                .doc(targetTile.cityId);
+              const receiverCityDoc = await receiverCityRef.get();
+
+              if (!receiverCityDoc.exists) {
+                batch.update(missionRef, {
+                  status: "returning",
+                  reportId: "error_city_not_found",
+                });
+                processedMissions++;
+                continue;
+              }
+
+              const receiverCity = receiverCityDoc.data() as City;
+
+              // Add resources to receiver city
+              const resourceUpdates: { [key: string]: FieldValue } = {};
+              for (const [resourceType, amount] of Object.entries(
+                mission.resources
+              )) {
+                if (amount && amount > 0) {
+                  resourceUpdates[`resources.${resourceType}`] =
+                    FieldValue.increment(amount);
+                }
+              }
+
+              batch.update(receiverCityRef, resourceUpdates);
+
+              // Get sender name for report
+              const senderDoc = await db
+                .collection("users")
+                .doc(mission.ownerId)
+                .get();
+              const senderName = senderDoc.data()?.name || "Unknown Player";
+
+              const transferReport: ResourceTransferReport = {
+                success: true,
+                resources: mission.resources,
+                senderCityId: mission.originCityId,
+                receiverCityId: targetTile.cityId,
+                senderName: senderName,
+                receiverName: receiverCity.name,
+              };
+
+              const reportRef = db.collection("transferReports").doc();
+              batch.set(reportRef, removeUndefinedValues(transferReport));
+
+              // Create report for receiver (incoming resources)
+              if (targetTile.ownerId !== mission.ownerId) {
+                const receiverReportRef = db
+                  .collection("users")
+                  .doc(targetTile.ownerId)
+                  .collection("reports")
+                  .doc();
+
+                const receiverReport: MissionReport = {
+                  id: receiverReportRef.id,
+                  missionId: mission.id,
+                  ownerId: targetTile.ownerId,
+                  actionType: "RESOURCE_TRANSFER",
+                  timestamp: FieldValue.serverTimestamp(),
+                  read: false,
+                  targetCoords: mission.originCoords,
+                  transferDetails: transferReport,
+                };
+
+                batch.set(receiverReportRef, receiverReport);
+              }
+
+              batch.update(missionRef, {
+                status: "returning",
+                reportId: reportRef.id,
+              });
+
+              break;
+            }
+
             case "GATHER": {
               let totalCapacity = 0;
               for (const unitId in mission.army) {
@@ -510,7 +615,6 @@ export const processMissions = onSchedule(
                 continue;
               }
 
-              // Success-rate
               const successChance = Math.min(
                 100,
                 50 + attackerEspionageLevel * 10 + spyCount / 100
@@ -542,7 +646,6 @@ export const processMissions = onSchedule(
                   const defenderEspionageLevel =
                     defenderCity.research?.espionage || 0;
 
-                  // Detection-Rate
                   const detectionChance = Math.max(
                     0,
                     30 +
@@ -655,7 +758,30 @@ export const processMissions = onSchedule(
             .doc();
           let newReport: MissionReport | null = null;
 
-          if (mission.actionType === "GATHER" && mission.resources) {
+          if (mission.actionType === "SEND_RSS" && mission.reportId) {
+            const transferReportRef = db
+              .collection("transferReports")
+              .doc(mission.reportId);
+            const transferReportDoc = await transferReportRef.get();
+
+            if (transferReportDoc.exists) {
+              const transferDetails =
+                transferReportDoc.data() as ResourceTransferReport;
+
+              newReport = {
+                id: userReportRef.id,
+                missionId: mission.id,
+                ownerId: mission.ownerId,
+                actionType: "RESOURCE_TRANSFER",
+                timestamp: FieldValue.serverTimestamp(),
+                read: false,
+                targetCoords: mission.targetCoords,
+                transferDetails: transferDetails,
+              };
+
+              batch.delete(transferReportRef);
+            }
+          } else if (mission.actionType === "GATHER" && mission.resources) {
             for (const resourceType in mission.resources) {
               const resourceAmount =
                 mission.resources[resourceType as ResourceKey] ?? 0;

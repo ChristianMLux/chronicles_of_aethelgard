@@ -10,16 +10,26 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import Link from "next/link";
-import { Eye, EyeOff, Crosshair, Box, Swords } from "lucide-react"; // MODIFIED: Imported Swords for Spy icon
-import { UnitKey, ResourceKey, SpyReport } from "@/types"; // MODIFIED: Imported SpyReport
+import { Eye, EyeOff, Crosshair, Box, Swords, Package } from "lucide-react";
+import { UnitKey, ResourceKey, SpyReport } from "@/types";
 import { CompactBattleReport } from "@/components/reports/BattleReportCompact";
-import { CompactSpyReport } from "@/components/reports/SpyReportCompact"; // ADDED: Import compact spy report
+import { CompactSpyReport } from "@/components/reports/SpyReportCompact";
+import { CompactTransferReport } from "@/components/reports/ResourceTransferReportCompact";
+
+interface ResourceTransferReport {
+  success: boolean;
+  resources: Partial<Record<ResourceKey, number>>;
+  senderCityId: string;
+  receiverCityId: string;
+  senderName?: string;
+  receiverName?: string;
+}
 
 interface ArmyUnits {
   swordsman: number;
   archer: number;
   knight: number;
-  spy: number; // ADDED: spy unit
+  spy: number;
 }
 
 interface UnitDetail {
@@ -57,14 +67,22 @@ interface BattleReportDetails {
 interface MissionReport {
   id: string;
   read: boolean;
-  actionType: "ATTACK" | "GATHER" | "SPY" | "SEND_RSS" | "DEFENSE";
+  actionType:
+    | "ATTACK"
+    | "GATHER"
+    | "SPY"
+    | "SEND_RSS"
+    | "DEFENSE"
+    | "RESOURCE_TRANSFER";
   targetCoords: { x: number; y: number };
   timestamp: Timestamp;
   battleDetails?: BattleReportDetails;
   spyDetails?: SpyReport;
   gatheredResources?: Partial<Record<ResourceKey, number>>;
+  transferDetails?: ResourceTransferReport;
   missionId: string;
   ownerId: string;
+  isDefender?: boolean;
 }
 
 export default function ReportsPage() {
@@ -87,28 +105,56 @@ export default function ReportsPage() {
 
   const getReportSummary = (report: MissionReport) => {
     const coords = `(${report.targetCoords.x}, ${report.targetCoords.y})`;
+
+    if (report.actionType === "RESOURCE_TRANSFER") {
+      if (report.transferDetails) {
+        const isReceiver =
+          report.isDefender || !report.transferDetails.senderName;
+        if (isReceiver) {
+          return `Ressourcen erhalten von ${
+            report.transferDetails.senderName || "Unbekannt"
+          }`;
+        } else {
+          return `Ressourcen gesendet an ${
+            report.transferDetails.receiverName || coords
+          }`;
+        }
+      }
+      return `Ressourcentransfer bei ${coords}`;
+    }
+
     if (report.actionType === "ATTACK" || report.actionType === "DEFENSE") {
       const winner = report.battleDetails?.winner;
+      if (report.isDefender) {
+        if (winner === "defender")
+          return `Verteidigung erfolgreich bei ${coords}`;
+        return `Verteidigung gescheitert bei ${coords}`;
+      }
       if (winner === "attacker") return `Sieg bei ${coords}`;
       if (winner === "defender") return `Niederlage bei ${coords}`;
       return `Unentschieden bei ${coords}`;
     }
+
     if (report.actionType === "GATHER") {
       const resources = Object.entries(report.gatheredResources ?? {})
         .map(([key, value]) => `${value.toLocaleString()} ${key}`)
         .join(", ");
       return `Ressourcen gesammelt bei ${coords}: ${resources || "Nichts"}`;
     }
+
     if (report.actionType === "SPY") {
       if (report.spyDetails?.success) {
         return `Spionage bei ${coords} erfolgreich`;
       }
       return `Spionage bei ${coords} fehlgeschlagen`;
     }
+
     return "Unbekannter Bericht";
   };
 
   const getReportIcon = (report: MissionReport) => {
+    if (report.actionType === "RESOURCE_TRANSFER")
+      return <Package className="text-green-400" />;
     if (report.actionType === "ATTACK" || report.actionType === "DEFENSE")
       return <Crosshair className="text-red-400" />;
     if (report.actionType === "GATHER")
@@ -177,6 +223,15 @@ export default function ReportsPage() {
                     defenderName="Gegner"
                   />
                 )}
+                {report.actionType === "RESOURCE_TRANSFER" &&
+                  report.transferDetails && (
+                    <CompactTransferReport
+                      reportData={report.transferDetails}
+                      isReceiver={
+                        report.isDefender || !report.transferDetails.senderName
+                      }
+                    />
+                  )}
 
                 <div className="text-xl ml-4">
                   {report.read ? (

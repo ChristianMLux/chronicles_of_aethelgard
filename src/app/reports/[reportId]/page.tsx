@@ -7,7 +7,17 @@ import { useAuth } from "@/components/AuthProvider";
 import { getDb } from "@/../firebase";
 import { BattleReportClient } from "@/components/reports/BattleReportClient";
 import { SpyReportClient } from "@/components/reports/SpyReportClient";
-import { UnitKey, MissionReport, SpyReport } from "@/types";
+import { TransferReportClient } from "@/components/reports/ResourceTransferReportClient";
+import { UnitKey, MissionReport, SpyReport, ResourceKey } from "@/types";
+
+interface ResourceTransferReport {
+  success: boolean;
+  resources: Partial<Record<ResourceKey, number>>;
+  senderCityId: string;
+  receiverCityId: string;
+  senderName?: string;
+  receiverName?: string;
+}
 
 interface ArmyUnits {
   swordsman: number;
@@ -54,7 +64,9 @@ interface UserReport extends MissionReport {
   id: string;
   battleDetails?: BattleReportDetails;
   spyDetails?: SpyReport;
+  transferDetails?: ResourceTransferReport;
   read: boolean;
+  isDefender?: boolean;
 }
 
 export default function ReportPage() {
@@ -152,7 +164,23 @@ export default function ReportPage() {
           />
         );
 
+      case "RESOURCE_TRANSFER":
+        if (!report.transferDetails) {
+          return (
+            <div className="text-center p-8">
+              Keine Transferdetails für diesen Bericht verfügbar.
+            </div>
+          );
+        }
+        return (
+          <TransferReportClient
+            reportData={report.transferDetails}
+            isReceiver={report.isDefender || !report.transferDetails.senderName}
+          />
+        );
+
       default:
+        // Fallback for legacy reports or unknown types
         if (report.battleDetails) {
           const isAttacker = report.battleDetails.attackerId === user?.uid;
           return (
@@ -160,6 +188,23 @@ export default function ReportPage() {
               battleData={report.battleDetails}
               attackerName={isAttacker ? "Du" : "Gegner"}
               defenderName={!isAttacker ? "Du" : "Gegner"}
+            />
+          );
+        } else if (report.spyDetails) {
+          return (
+            <SpyReportClient
+              reportData={report.spyDetails}
+              attackerName="Du"
+              defenderName="Gegner"
+            />
+          );
+        } else if (report.transferDetails) {
+          return (
+            <TransferReportClient
+              reportData={report.transferDetails}
+              isReceiver={
+                report.isDefender || !report.transferDetails.senderName
+              }
             />
           );
         }

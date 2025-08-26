@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
     }
 
     const missionData: StartWorldMissionRequest = validation.data;
-    const { originCityId, targetTileId, actionType, army } = missionData;
+    const { originCityId, targetTileId, actionType, army, resources } =
+      missionData;
 
     const missionId = db.collection("worldMissions").doc().id;
 
@@ -82,6 +83,53 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // SEND_RSS specific validation and resource handling
+      const resourceUpdates: { [key: string]: FieldValue } = {};
+      if (actionType === "SEND_RSS") {
+        if (!resources || Object.values(resources).every((v) => !v)) {
+          throw new Error("You must send at least one resource type.");
+        }
+
+        // Calculate total transport capacity
+        let totalCapacity = 0;
+        for (const unitId in army) {
+          const unitConf = UNITS[unitId as keyof typeof UNITS];
+          const amount = army[unitId as keyof typeof army];
+          totalCapacity += (unitConf.capacity || 0) * amount;
+        }
+
+        // Calculate total resources to send
+        let totalResourceAmount = 0;
+        for (const resourceType in resources) {
+          const requestedAmount =
+            resources[resourceType as keyof typeof resources] || 0;
+          if (requestedAmount > 0) {
+            const availableAmount =
+              city.resources?.[resourceType as keyof typeof city.resources] ||
+              0;
+            if (availableAmount < requestedAmount) {
+              throw new Error(
+                `Not enough ${resourceType}. Available: ${availableAmount}, Requested: ${requestedAmount}`
+              );
+            }
+            totalResourceAmount += requestedAmount;
+            resourceUpdates[`resources.${resourceType}`] = FieldValue.increment(
+              -requestedAmount
+            );
+          }
+        }
+
+        if (totalResourceAmount > totalCapacity) {
+          throw new Error(
+            `Transport capacity exceeded. Capacity: ${totalCapacity}, Resources: ${totalResourceAmount}`
+          );
+        }
+
+        if (totalResourceAmount === 0) {
+          throw new Error("You must send at least some resources.");
+        }
+      }
+
       const originTileId = city.tileId;
       if (!originTileId) {
         throw new Error("City has no associated tile ID");
@@ -106,6 +154,7 @@ export async function POST(req: NextRequest) {
       const targetTile = targetTileDoc.data() as Tile;
       const targetCoords = targetTile.coords;
 
+      // Validate based on action type
       if (
         actionType === "GATHER" &&
         (targetTile.type !== "resource" || targetTile.activeMissionId)
@@ -114,11 +163,23 @@ export async function POST(req: NextRequest) {
           "Cannot gather from this tile. It is not a resource tile or it is already being gathered from."
         );
       }
+
       if (
         actionType === "ATTACK" &&
         !["city", "npc_camp"].includes(targetTile.type)
       ) {
         throw new Error("You can only attack cities and NPC camps.");
+      }
+
+      if (
+        actionType === "SPY" &&
+        !["city", "npc_camp"].includes(targetTile.type)
+      ) {
+        throw new Error("You can only spy on cities and NPC camps.");
+      }
+
+      if (actionType === "SEND_RSS" && targetTile.type !== "city") {
+        throw new Error("You can only send resources to cities.");
       }
 
       const distance = calculateDistance(originCoords, targetCoords);
@@ -164,7 +225,10 @@ export async function POST(req: NextRequest) {
       const missionRef = db.collection("worldMissions").doc(missionId);
 
       transaction.set(missionRef, newMission);
-      transaction.update(cityRef, unitUpdates);
+      transaction.update(cityRef, {
+        ...unitUpdates,
+        ...resourceUpdates,
+      });
 
       if (actionType === "GATHER") {
         transaction.update(targetTileRef, { activeMissionId: missionId });

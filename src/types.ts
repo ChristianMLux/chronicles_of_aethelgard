@@ -292,7 +292,7 @@ export interface BattleReportRound {
 
 export interface MissionReport {
   id: string;
-  actionType: "ATTACK" | "GATHER" | "SPY" | "DEFENSE";
+  actionType: "ATTACK" | "GATHER" | "SPY" | "DEFENSE" | "RESOURCE_TRANSFER";
   timestamp: Timestamp;
   read: boolean;
   targetCoords: { x: number; y: number };
@@ -317,4 +317,33 @@ export interface SpyReport {
   targetBuildings?: Partial<Buildings>;
   targetResearch?: Partial<Research>;
   targetCityCount?: number;
+}
+
+export interface ResourceTransferReport {
+  success: boolean;
+  resources: Partial<Record<ResourceKey, number>>;
+  senderCityId: string;
+  receiverCityId: string;
+  senderName?: string;
+  receiverName?: string;
+  timestamp?: Timestamp;
+}
+
+export interface UnitTransportInfo {
+  unitType: UnitKey;
+  count: number;
+  capacityPerUnit: number;
+  totalCapacity: number;
+}
+
+export interface MissionValidationResult {
+  valid: boolean;
+  error?: string;
+  warnings?: string[];
+  transportInfo?: {
+    totalCapacity: number;
+    usedCapacity: number;
+    remainingCapacity: number;
+    units: UnitTransportInfo[];
+  };
 }
