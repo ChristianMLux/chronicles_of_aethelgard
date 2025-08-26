@@ -1,30 +1,29 @@
 import "dotenv/config";
-
 import admin from "firebase-admin";
 import { fileURLToPath } from "url";
 import { resolve } from "path";
+import { getFirestore, WriteBatch } from "firebase-admin/firestore";
 
 // ==================== CONFIGURATION ====================
 const WORLD_CONFIG = {
-  worldSize: 20,
-  // --------------------------
+  worldSize: 40,
   continentId: "aethelgard",
   continentName: "Aethelgard",
   zones: {
     outer: {
-      radiusPercent: 0.6, // 60% of radius = outer zone
+      radiusPercent: 0.6,
       resourceDensity: 0.3,
       npcLevel: [1, 3],
       npcDensity: 0.05,
     },
     middle: {
-      radiusPercent: 0.3, // 30% = middle zone
+      radiusPercent: 0.3,
       resourceDensity: 0.4,
       npcLevel: [4, 6],
       npcDensity: 0.1,
     },
     center: {
-      radiusPercent: 0.1, // 10% = center zone
+      radiusPercent: 0.1,
       resourceDensity: 0.5,
       npcLevel: [7, 10],
       npcDensity: 0.15,
@@ -33,10 +32,20 @@ const WORLD_CONFIG = {
   terrain: {
     weights: {
       plains: 60,
-      forest: 25,
-      mountains: 10,
-      water: 5,
+      forest: 40,
+      mountains: 0,
+      water: 0,
       desert: 0,
+    },
+    waterBodies: {
+      count: 1,
+      minSize: 5,
+      maxSize: 15,
+    },
+    mountainRanges: {
+      count: 1,
+      minSize: 4,
+      maxSize: 10,
     },
   },
   resources: {
@@ -101,10 +110,8 @@ const getTileId = (x: number, y: number) =>
   `${WORLD_CONFIG.continentId}_${x.toString().padStart(3, "0")}_${y
     .toString()
     .padStart(3, "0")}`;
-
 const getRandomInt = (min: number, max: number) =>
   Math.floor(Math.random() * (max - min + 1)) + min;
-
 const getWeightedRandom = <T extends string>(weights: Record<T, number>): T => {
   const totalWeight = (Object.values(weights) as number[]).reduce(
     (sum, w) => sum + w,
@@ -112,14 +119,11 @@ const getWeightedRandom = <T extends string>(weights: Record<T, number>): T => {
   );
   let random = Math.random() * totalWeight;
   for (const key in weights) {
-    if (random < weights[key as T]) {
-      return key as T;
-    }
+    if (random < weights[key as T]) return key as T;
     random -= weights[key as T];
   }
-  return Object.keys(weights)[0] as T; // Fallback
+  return Object.keys(weights)[0] as T;
 };
-
 const getRegion = (
   x: number,
   y: number,
@@ -129,8 +133,138 @@ const getRegion = (
   if (x >= centerX && y < centerY) return "North-East";
   if (x < centerX && y < centerY) return "North-West";
   if (x < centerX && y >= centerY) return "South-West";
-  return "South-East"; // Also covers x >= centerX && y >= centerY
+  return "South-East";
 };
+async function clearFirestoreCollection(
+  db: admin.firestore.Firestore,
+  collectionPath: string,
+  batchSize = 400
+) {
+  const collectionRef = db.collection(collectionPath);
+  const querySnapshot = await collectionRef.get();
+
+  if (querySnapshot.size === 0) {
+    console.log(`Collection '${collectionPath}' is already empty.`);
+    return;
+  }
+
+  console.log(
+    `Deleting ${querySnapshot.size} documents from '${collectionPath}'...`
+  );
+
+  const batchArray: WriteBatch[] = [];
+  batchArray.push(db.batch());
+  let operationCount = 0;
+
+  querySnapshot.forEach((doc) => {
+    batchArray[batchArray.length - 1].delete(doc.ref);
+    operationCount++;
+
+    if (operationCount === batchSize) {
+      batchArray.push(db.batch());
+      operationCount = 0;
+    }
+  });
+
+  await Promise.all(batchArray.map((batch) => batch.commit()));
+  console.log(`✅ Collection '${collectionPath}' has been cleared.`);
+}
+
+async function resetCityLocations(db: admin.firestore.Firestore) {
+  const citiesRef = db.collection("cities");
+  const snapshot = await citiesRef.get();
+
+  if (snapshot.empty) {
+    console.log("No cities found to reset.");
+    return;
+  }
+
+  console.log(`Resetting location for ${snapshot.size} cities...`);
+  const batch = db.batch();
+  snapshot.forEach((cityDoc) => {
+    const cityData = cityDoc.data();
+    delete cityData.tileId;
+    batch.set(cityDoc.ref, cityData);
+  });
+
+  await batch.commit();
+  console.log("✅ All city locations have been reset.");
+}
+
+async function clearPreviousWorldData(db: admin.firestore.Firestore) {
+  console.log("\n--- Starting World Data Reset ---");
+  await clearFirestoreCollection(db, "world");
+  await clearFirestoreCollection(db, "worldMissions");
+  await resetCityLocations(db);
+  console.log("--- ✅ World Data Reset Complete ---\n");
+}
+
+// ==================== WORLD FEATURE GENERATION ====================
+function placeOrganicFeatures(
+  tiles: Tile[][],
+  featureType: "water" | "mountains"
+) {
+  const { worldSize } = WORLD_CONFIG;
+  const config =
+    featureType === "water"
+      ? WORLD_CONFIG.terrain.waterBodies
+      : WORLD_CONFIG.terrain.mountainRanges;
+
+  for (let i = 0; i < config.count; i++) {
+    const centerX = getRandomInt(10, worldSize - 10);
+    const centerY = getRandomInt(10, worldSize - 10);
+    const targetSize = getRandomInt(config.minSize, config.maxSize);
+
+    const queue = [{ x: centerX, y: centerY, distance: 0 }];
+    const visited = new Set<string>();
+    let placed = 0;
+
+    while (queue.length > 0 && placed < targetSize) {
+      const idx = Math.floor(Math.random() * Math.min(5, queue.length));
+      const { x, y, distance } = queue.splice(idx, 1)[0];
+      const key = `${x},${y}`;
+
+      if (visited.has(key) || distance > 15) continue;
+      visited.add(key);
+
+      const placeProbability = Math.exp(-distance * 0.2);
+
+      const canPlace =
+        featureType === "water"
+          ? tiles[y][x].terrain !== "mountains"
+          : tiles[y][x].terrain === "plains" ||
+            tiles[y][x].terrain === "forest";
+
+      if (Math.random() < placeProbability && canPlace) {
+        tiles[y][x].terrain = featureType;
+        tiles[y][x].type = "empty";
+        placed++;
+
+        const neighbors = [
+          [0, 1],
+          [1, 0],
+          [0, -1],
+          [-1, 0],
+          [1, 1],
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+        ];
+
+        for (const [dx, dy] of neighbors) {
+          const nx = x + dx,
+            ny = y + dy;
+          if (nx >= 0 && nx < worldSize && ny >= 0 && ny < worldSize) {
+            const neighborKey = `${nx},${ny}`;
+            if (!visited.has(neighborKey)) {
+              queue.push({ x: nx, y: ny, distance: distance + 1 });
+            }
+          }
+        }
+      }
+    }
+  }
+}
 
 // ==================== CORE GENERATION LOGIC ====================
 export function generateWorld() {
@@ -139,19 +273,45 @@ export function generateWorld() {
   const tiles: Tile[][] = Array(worldSize)
     .fill(null)
     .map(() => Array(worldSize).fill(null));
-
   const validStartPositions: { x: number; y: number }[] = [];
 
+  // PASS 1: Initialize all Base Tiles
+  for (let y = 0; y < worldSize; y++) {
+    for (let x = 0; x < worldSize; x++) {
+      const zone: ZoneType = "outer";
+      const location: Location = {
+        region: getRegion(x, y, center.x, center.y),
+        continent: WORLD_CONFIG.continentId,
+        territory: zone,
+        continentName: WORLD_CONFIG.continentName,
+        territoryName: zone.charAt(0).toUpperCase() + zone.slice(1),
+      };
+      tiles[y][x] = {
+        id: getTileId(x, y),
+        coords: { x, y },
+        location,
+        terrain: "plains",
+        type: "empty",
+        zone,
+      };
+    }
+  }
+
+  // PASS 2: Place mountain-ranges
+  placeOrganicFeatures(tiles, "mountains");
+
+  // PASS 3: Place water-features
+  placeOrganicFeatures(tiles, "water");
+
+  // PASS 4: fill all other tiles
   for (let y = 0; y < worldSize; y++) {
     for (let x = 0; x < worldSize; x++) {
       const distanceToCenter = Math.sqrt(
         (x - center.x) ** 2 + (y - center.y) ** 2
       );
       const radiusPercent = distanceToCenter / (worldSize / 2);
-
       let zone: ZoneType;
       let zoneConfig;
-
       if (radiusPercent <= WORLD_CONFIG.zones.center.radiusPercent) {
         zone = "center";
         zoneConfig = WORLD_CONFIG.zones.center;
@@ -162,27 +322,19 @@ export function generateWorld() {
         zone = "outer";
         zoneConfig = WORLD_CONFIG.zones.outer;
       }
+      tiles[y][x].zone = zone;
+      tiles[y][x].location.territory = zone;
+      tiles[y][x].location.territoryName =
+        zone.charAt(0).toUpperCase() + zone.slice(1);
 
-      const location: Location = {
-        region: getRegion(x, y, center.x, center.y),
-        continent: WORLD_CONFIG.continentId,
-        territory: zone,
-        continentName: WORLD_CONFIG.continentName,
-        territoryName: zone.charAt(0).toUpperCase() + zone.slice(1),
-      };
-
-      const baseTile: Omit<Tile, "type"> = {
-        id: getTileId(x, y),
-        coords: { x, y },
-        location,
-        terrain: getWeightedRandom(WORLD_CONFIG.terrain.weights),
-        zone,
-      };
-
-      if (baseTile.terrain === "mountains" || baseTile.terrain === "water") {
-        tiles[y][x] = { ...baseTile, type: "empty" };
+      if (
+        tiles[y][x].terrain === "water" ||
+        tiles[y][x].terrain === "mountains"
+      ) {
         continue;
       }
+
+      tiles[y][x].terrain = getWeightedRandom(WORLD_CONFIG.terrain.weights);
 
       if (Math.random() < zoneConfig.npcDensity) {
         const npcLevel = getRandomInt(
@@ -190,14 +342,14 @@ export function generateWorld() {
           zoneConfig.npcLevel[1]
         ) as keyof typeof WORLD_CONFIG.npcTroops;
         tiles[y][x] = {
-          ...baseTile,
+          ...tiles[y][x],
           type: "npc_camp",
           npcLevel,
           npcTroops: WORLD_CONFIG.npcTroops[npcLevel],
         };
       } else if (Math.random() < zoneConfig.resourceDensity) {
         tiles[y][x] = {
-          ...baseTile,
+          ...tiles[y][x],
           type: "resource",
           resourceType: getWeightedRandom(WORLD_CONFIG.resources.weights),
           resourceAmount: getRandomInt(
@@ -206,7 +358,6 @@ export function generateWorld() {
           ),
         };
       } else {
-        tiles[y][x] = { ...baseTile, type: "empty" };
         if (zone === "outer") {
           validStartPositions.push({ x, y });
         }
@@ -214,25 +365,46 @@ export function generateWorld() {
     }
   }
 
-  return {
-    tiles,
-    validStartPositions,
-  };
+  return { tiles, validStartPositions };
 }
 
 // ==================== FIRESTORE UPLOAD ====================
-async function uploadWorldToFirestore(tiles: Tile[][]) {
+async function uploadWorldToFirestore(
+  db: admin.firestore.Firestore,
+  tiles: Tile[][]
+) {
+  const batchSize = 400;
+  const flatTiles = tiles.flat();
+  console.log(`Starting Firestore upload of ${flatTiles.length} tiles...`);
+  for (let i = 0; i < flatTiles.length; i += batchSize) {
+    const batch = db.batch();
+    const chunk = flatTiles.slice(i, i + batchSize);
+    chunk.forEach((tile) => {
+      const docRef = db.collection("world").doc(tile.id);
+      batch.set(docRef, tile);
+    });
+    await batch.commit();
+    console.log(
+      `Uploaded batch ${i / batchSize + 1} of ${Math.ceil(
+        flatTiles.length / batchSize
+      )}`
+    );
+  }
+  console.log("✅ Firestore upload complete!");
+}
+
+// ==================== SCRIPT EXECUTION (AKTUALISIERT) ====================
+async function main() {
   if (
     !process.env.FIREBASE_PROJECT_ID ||
     !process.env.FIREBASE_CLIENT_EMAIL ||
     !process.env.FIREBASE_PRIVATE_KEY
   ) {
     console.error(
-      "Firebase Admin credentials not found in environment variables. Make sure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are set."
+      "Firebase Admin credentials not found in environment variables."
     );
     return;
   }
-
   if (!admin.apps.length) {
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -242,37 +414,19 @@ async function uploadWorldToFirestore(tiles: Tile[][]) {
       }),
     });
   }
-  const db = admin.firestore();
-  const batchSize = 400;
-  const flatTiles = tiles.flat();
+  const db = getFirestore();
 
-  console.log(`Starting Firestore upload of ${flatTiles.length} tiles...`);
+  console.log(
+    "\n⚠️  WARNING: This will DELETE ALL existing world data (tiles, missions, city locations) and generate a new world!"
+  );
+  console.log("This action cannot be undone.");
+  console.log("Press Ctrl+C to cancel, or wait 10 seconds to continue...");
+  await new Promise((resolve) => setTimeout(resolve, 10000));
 
-  for (let i = 0; i < flatTiles.length; i += batchSize) {
-    const batch = db.batch();
-    const chunk = flatTiles.slice(i, i + batchSize);
+  await clearPreviousWorldData(db);
 
-    chunk.forEach((tile) => {
-      const docRef = db.collection("world").doc(tile.id);
-      batch.set(docRef, tile);
-    });
-
-    await batch.commit();
-    console.log(
-      `Uploaded batch ${i / batchSize + 1} of ${Math.ceil(
-        flatTiles.length / batchSize
-      )}`
-    );
-  }
-
-  console.log("✅ Firestore upload complete!");
-}
-
-// ==================== SCRIPT EXECUTION (for direct run) ====================
-async function main() {
-  console.log("Starting world generation...");
+  console.log("Starting new world generation...");
   const { tiles, validStartPositions } = generateWorld();
-
   console.log("✨ World generation complete!");
   console.log(`📊 Statistics:`);
   console.log(
@@ -288,19 +442,12 @@ async function main() {
   );
   console.log(`  - Valid start positions: ${validStartPositions.length}`);
 
-  console.log(
-    "\n⚠️  WARNING: This will upload the generated world to Firestore!"
-  );
-  console.log("This will overwrite existing data in the 'world' collection.");
-  console.log("Press Ctrl+C to cancel, or wait 10 seconds to continue...");
-  await new Promise((resolve) => setTimeout(resolve, 10000));
-
-  await uploadWorldToFirestore(tiles);
+  await uploadWorldToFirestore(db, tiles);
 }
 
-const isMainModule = (importMetaUrl: string, argv1: string) => {
+const isMainModule = (url: string, argv1: string) => {
   const mainModulePath = resolve(process.cwd(), argv1);
-  const currentModulePath = fileURLToPath(importMetaUrl);
+  const currentModulePath = fileURLToPath(url);
   return mainModulePath === currentModulePath;
 };
 

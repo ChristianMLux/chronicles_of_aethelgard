@@ -39,7 +39,6 @@ export default function ArmyClient({ initialGameConfig }: ArmyClientProps) {
       setRemainingTime(null);
       return;
     }
-    console.log(trainingItem);
     const endTimeMillis = trainingItem.endTime.toMillis();
     const now = currentTime;
     const remaining = Math.round((endTimeMillis - now) / 1000);
