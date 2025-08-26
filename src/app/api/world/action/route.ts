@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
     const missionId = db.collection("worldMissions").doc().id;
 
     await db.runTransaction(async (transaction: Transaction) => {
+      const ownerUserRef = db.collection("users").doc(userId);
+      const ownerUserDoc = await transaction.get(ownerUserRef);
+      const ownerName = ownerUserDoc.exists
+        ? (ownerUserDoc.data() as { name: string }).name
+        : "Unknown Player";
       const cityRef = db
         .collection("users")
         .doc(userId)
@@ -83,14 +88,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // SEND_RSS specific validation and resource handling
+      // SEND_RSS
       const resourceUpdates: { [key: string]: FieldValue } = {};
       if (actionType === "SEND_RSS") {
         if (!resources || Object.values(resources).every((v) => !v)) {
           throw new Error("You must send at least one resource type.");
         }
 
-        // Calculate total transport capacity
         let totalCapacity = 0;
         for (const unitId in army) {
           const unitConf = UNITS[unitId as keyof typeof UNITS];
@@ -98,7 +102,6 @@ export async function POST(req: NextRequest) {
           totalCapacity += (unitConf.capacity || 0) * amount;
         }
 
-        // Calculate total resources to send
         let totalResourceAmount = 0;
         for (const resourceType in resources) {
           const requestedAmount =
@@ -200,6 +203,30 @@ export async function POST(req: NextRequest) {
       const arrivalTime = now + marchDurationMs;
       const returnTime = arrivalTime + marchDurationMs;
 
+      let targetName: string | undefined = "Unbewohntes Land";
+
+      if (targetTile.ownerId) {
+        if (targetTile.type === "city" && targetTile.cityId) {
+          const targetCityRef = db
+            .collection("users")
+            .doc(targetTile.ownerId)
+            .collection("cities")
+            .doc(targetTile.cityId);
+          const targetCityDoc = await transaction.get(targetCityRef);
+          if (targetCityDoc.exists) {
+            targetName = (targetCityDoc.data() as City).name;
+          }
+        } else {
+          const targetUserRef = db.collection("users").doc(targetTile.ownerId);
+          const targetUserDoc = await transaction.get(targetUserRef);
+          if (targetUserDoc.exists) {
+            targetName = (targetUserDoc.data() as { name: string }).name;
+          }
+        }
+      } else if (targetTile.type === "npc_camp") {
+        targetName = "NPC Lager";
+      }
+
       const newMission: WorldMission = {
         id: missionId,
         ownerId: userId,
@@ -213,6 +240,8 @@ export async function POST(req: NextRequest) {
         arrivalTime,
         returnTime,
         status: "outgoing",
+        ownerName: ownerName,
+        targetName: targetName,
       };
 
       if (targetTile.ownerId) {

@@ -259,6 +259,8 @@ export interface WorldMission {
   arrivalTime: number;
   returnTime: number;
   status: WorldMissionStatus;
+  ownerName: string;
+  targetName?: string;
 }
 
 export interface StartWorldMissionRequest {

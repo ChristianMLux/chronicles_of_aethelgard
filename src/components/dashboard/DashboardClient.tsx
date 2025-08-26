@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Warehouse,
@@ -12,10 +12,13 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { EnhancedCityCard, EnhancedCity } from "./EnhancedCityCard";
-import { ActiveMissionsCard } from "./ActiveMissionCard";
+import { ActiveMissionCard } from "./activeMissionCard/ActiveMissionCard";
 import { DashboardCard } from "./DashboardCard";
 import { numberFmt } from "@/lib/utils";
 import { WorldMission } from "@/types";
+import { useAuth } from "../AuthProvider";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { getDb } from "@/../firebase";
 
 interface DashboardClientProps {
   initialData: {
@@ -39,9 +42,57 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({ initialData }: DashboardClientProps) {
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(initialData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  const [outgoingMissions, setOutgoingMissions] = useState<WorldMission[]>([]);
+  const [incomingMissions, setIncomingMissions] = useState<WorldMission[]>([]);
+  const db = getDb();
+  useEffect(() => {
+    if (!user?.uid) {
+      setOutgoingMissions([]);
+      setIncomingMissions([]);
+      return;
+    }
+
+    const worldMissionsRef = collection(db, "worldMissions");
+
+    const outgoingQuery = query(
+      worldMissionsRef,
+      where("ownerId", "==", user.uid),
+      where("status", "!=", "completed")
+    );
+    const unsubscribeOutgoing = onSnapshot(outgoingQuery, (snapshot) => {
+      const missions = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as WorldMission)
+      );
+      setOutgoingMissions(missions);
+    });
+
+    const incomingQuery = query(
+      worldMissionsRef,
+      where("targetOwnerId", "==", user.uid),
+      where("status", "!=", "completed")
+    );
+    const unsubscribeIncoming = onSnapshot(incomingQuery, (snapshot) => {
+      const missions = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as WorldMission)
+      );
+      setIncomingMissions(missions);
+    });
+
+    return () => {
+      unsubscribeOutgoing();
+      unsubscribeIncoming();
+    };
+  }, [db, user?.uid]);
+
+  const allMissions = useMemo(
+    () => [...outgoingMissions, ...incomingMissions],
+    [outgoingMissions, incomingMissions]
+  );
 
   const refreshData = async () => {
     setIsRefreshing(true);
@@ -59,12 +110,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     }
   };
 
-  useEffect(() => {
-    const interval = setInterval(refreshData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const { cities, missions, stats } = dashboardData;
+  const { cities, stats } = dashboardData;
 
   const mockAlliance = { name: "Die Silberne Hand", members: 42, rank: 7 };
   const mockEvents = [
@@ -197,7 +243,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
           {/* Active Missions */}
           <div className="lg:col-span-1">
-            <ActiveMissionsCard missions={missions} />
+            <ActiveMissionCard missions={allMissions} userId={user?.uid} />
           </div>
 
           {/* Alliance & Events */}

@@ -17,6 +17,7 @@ export const UNITS = {
     recruitTime: 10, // in seconds
     roles: ["combat", "defense"],
     counter: "knight",
+    icon: "⚔️",
   },
   archer: {
     name: "Archer",
@@ -34,6 +35,7 @@ export const UNITS = {
     recruitTime: 12,
     roles: ["combat", "defense"],
     counter: "swordsman",
+    icon: "🏹",
   },
   knight: {
     name: "Knight",
@@ -51,6 +53,7 @@ export const UNITS = {
     recruitTime: 30,
     roles: ["combat"],
     counter: "archer",
+    icon: "🐴",
   },
   spy: {
     name: "Spy",
@@ -68,6 +71,7 @@ export const UNITS = {
     recruitTime: 120,
     roles: ["espionage"],
     counter: "knight",
+    icon: "🕵️‍♂️",
   },
 } as const;
 
